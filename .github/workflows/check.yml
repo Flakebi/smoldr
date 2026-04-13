@@ -1,0 +1,46 @@
+name: Build and test
+on: [pull_request, push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v6
+    - uses: nixbuild/nix-quick-install-action@v34
+      with:
+        nix_conf: |
+          keep-env-derivations = true
+          keep-outputs = true
+
+    - name: Check
+      run: |
+        nix flake check -L
+
+    - name: Package
+      if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+      run: |
+        commit_short="$(git rev-parse --short HEAD)"
+        date="$(date -I)"
+
+        # Create package
+        nix build .#mingw-release -L
+        cp result/smoldr.zip "smoldr_${date}_${GITHUB_RUN_ID}_${commit_short}.zip"
+
+        # Create agility SDK package
+        nix build .#mingw-agility-release -L
+        cp result/smoldr.zip "smoldr-agility_${date}_${GITHUB_RUN_ID}_${commit_short}.zip"
+
+    - uses: actions/upload-artifact@v7
+      if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+      with:
+        path: smoldr_*.zip
+        if-no-files-found: error
+        archive: false
+
+    - uses: actions/upload-artifact@v7
+      if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+      with:
+        path: smoldr-agility_*.zip
+        if-no-files-found: error
+        archive: false
