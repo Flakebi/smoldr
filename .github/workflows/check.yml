@@ -2,7 +2,7 @@ name: Build and test
 on: [pull_request, push]
 
 jobs:
-  build:
+  run:
     runs-on: ubuntu-latest
 
     steps:
@@ -12,6 +12,21 @@ jobs:
         nix_conf: |
           keep-env-derivations = true
           keep-outputs = true
+
+    - name: Restore and save Nix store
+      uses: nix-community/cache-nix-action@v7
+      with:
+        primary-key: nix-${{ runner.os }}-${{ hashFiles('flake.nix', 'flake.lock') }}
+        restore-prefixes-first-match: nix-${{ runner.os }}-
+        purge: true
+        # purge all versions of the cache
+        purge-prefixes: build-${{ runner.os }}-
+        # created more than 10 seconds ago relative to the start of the `Post Restore` phase
+        purge-created: PT10S
+        # except the version with the `primary-key`, if it exists
+        purge-primary-key: never
+        # and collect garbage in the Nix store until it reaches this size in bytes
+        gc-max-store-size: 0
 
     - name: Check
       run: |
