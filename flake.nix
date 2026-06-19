@@ -196,6 +196,27 @@
           };
         });
 
+        # Prepare wineprefix
+        wineprefix = pkgs.runCommand "wineprefix" {} ''
+          export WINEPREFIX="$out"
+          mkdir "$WINEPREFIX"
+
+          # Disable "install wine-mono" dialogue
+          export WINEDLLOVERRIDES="mscoree="
+          ${pkgs.wineWow64Packages.stable}/bin/wineboot -i
+          # Wait until ready
+          ${pkgs.wineWow64Packages.stable}/bin/wineserver -w
+
+          # Install dx12
+          PATH="${pkgs.zstd}/bin:$PATH" ${pkgs.gnutar}/bin/tar xf ${vkd3d-proton}
+          PATH="${pkgs.wineWowPackages.stable}/bin:$PATH" ${pkgs.runtimeShell} vkd3d-proton-${vkd3d-protonVersion}/setup_vkd3d_proton.sh install
+
+          # Shutdown wine
+          ${pkgs.wineWowPackages.stable}/bin/wineboot -s
+          # Wait until finished
+          ${pkgs.wineWowPackages.stable}/bin/wineserver -w
+        '';
+
         app-win-drv = pkgs.writeShellScriptBin "smoldr" ''
           set -euo pipefail
 
@@ -213,20 +234,9 @@
 
           # Disable "install wine-mono" dialogue
           export WINEDLLOVERRIDES="mscoree="
-          ${pkgs.wineWow64Packages.stable}/bin/wineboot -i
-          # Wait until ready
-          ${pkgs.wineWow64Packages.stable}/bin/wineserver -w
-
-          # Install dx12
-          # Extract vkd3d-proton in temporary directory
-          pushd "$WINEPREFIX"
-          PATH="${pkgs.zstd}/bin:$PATH" ${pkgs.gnutar}/bin/tar xf ${vkd3d-proton}
-          echo Installing vkd3d-proton
-          export wine="${pkgs.wineWow64Packages.stable}/bin/wine"
-          PATH="${pkgs.wineWow64Packages.stable}/bin:$PATH" ${pkgs.runtimeShell} vkd3d-proton-${vkd3d-protonVersion}/setup_vkd3d_proton.sh install
-          popd
-          echo Wine prefix is ready
-          echo
+          # Copy wine prefix
+          cp -r ${wineprefix}/* "$WINEPREFIX"
+          chmod u+w -R "$WINEPREFIX"
 
           ${pkgs.wineWow64Packages.stable}/bin/wine ${package-win}/bin/smoldr.exe "$@"
           # Wait until finished
@@ -242,6 +252,7 @@
         packages.smoldr = smoldr;
         packages.mingw = package-win;
         packages.mingw-agility = package-win-agility;
+        packages.app-win = app-win-drv;
 
         packages.mingw-release = pkgs.runCommand "create-mingw-release" {} ''
           mkdir -p $out
