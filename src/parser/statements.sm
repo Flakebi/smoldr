@@ -531,11 +531,14 @@ END
         },
         typ: Compute,
         shaders: [
-            SpanObj {
-                content: "csobj",
-                source_file: 0,
-                span: 35..40,
-            },
+            (
+                SpanObj {
+                    content: "csobj",
+                    source_file: 0,
+                    span: 35..40,
+                },
+                Compute,
+            ),
         ],
         root_sig: Some(
             SpanObj {
@@ -645,7 +648,7 @@ smoldr::parser::InvalidWord
    ╭─[1:17]
  1 │ PIPELINE cspipe RT
    ·                 ─┬
-   ·                  ╰── Must be one of COMPUTE
+   ·                  ╰── Must be one of COMPUTE, MESH
  2 │   ATTACH csobj
    ╰────
 
@@ -2113,6 +2116,63 @@ BUFFER fileBuf FILE statements.sm
                 content: "statements.sm",
                 source_file: 0,
                 span: 20..33,
+            },
+        ),
+    },
+]
+
+================================================================================
+MESH pipeline
+================================================================================
+
+PIPELINE meshpipe MESH
+  AMPLIFICATION_SHADER meshobj
+  MESH_SHADER meshobj
+  PIXEL_SHADER psobj
+  ROOT   default
+END
+
+--------------------------------------------------------------------------------
+
+[
+    Pipeline {
+        name: SpanObj {
+            content: "meshpipe",
+            source_file: 0,
+            span: 9..17,
+        },
+        typ: Mesh,
+        shaders: [
+            (
+                SpanObj {
+                    content: "meshobj",
+                    source_file: 0,
+                    span: 46..53,
+                },
+                Amplification,
+            ),
+            (
+                SpanObj {
+                    content: "meshobj",
+                    source_file: 0,
+                    span: 68..75,
+                },
+                Mesh,
+            ),
+            (
+                SpanObj {
+                    content: "psobj",
+                    source_file: 0,
+                    span: 91..96,
+                },
+                Pixel,
+            ),
+        ],
+        root_sig: Some(
+            SpanObj {
+                content: "default",
+                source_file: 0,
+                span: 106..113,
             },
         ),
     },

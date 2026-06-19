@@ -32,7 +32,7 @@ use crate::{
     Aabb, Bind, CommandSignatureArgument, DataType, Dim3, Directive, DispatchType, DumpDataType,
     DumpFormat, Export, Fill, HitGroup, InputViewType, LinkObject, PipelineStateObjectType,
     PipelineType, ProceduralGeometry, RootSigConst, RootSigEntry, RootSigTable, RootSigView,
-    RootValView, ShaderReference, SourceFileIdx, TlasBlas, Transform, TriangleGeometry,
+    RootValView, ShaderReference, ShaderType, SourceFileIdx, TlasBlas, Transform, TriangleGeometry,
     UnresolvedRootVal, UnresolvedRootValConst, UnresolvedShaderTableRecord, UnresolvedValue,
     UnresolvedValueContent, UnresolvedValues, Value, ValueContent, Vertex, ViewType,
 };
@@ -1024,11 +1024,15 @@ fn pipeline(s: &mut Input) -> Result<Directive> {
         _: space,
         typ: dispatch_id! {id;
             "COMPUTE" => empty.value(PipelineType::Compute),
-            _ => inv_word(id.span, "pipeline type", &["COMPUTE"]),
+            "MESH" => empty.value(PipelineType::Mesh),
+            _ => inv_word(id.span, "pipeline type", &["COMPUTE", "MESH"]),
         },
         _: line_end,
         _: repeat::<_, _, (), _, _>(0.., dispatch_id! {id;
-                "ATTACH" => delimited(space, identifier, line_end).map(|r| shaders.push(r)).map_err(inv_statement("ATTACH <name>", id)),
+                "ATTACH" => delimited(space, identifier, line_end).map(|r| shaders.push((r, ShaderType::Compute))).map_err(inv_statement("ATTACH <name>", id)),
+                "AMPLIFICATION_SHADER" => delimited(space, identifier, line_end).map(|r| shaders.push((r, ShaderType::Amplification))).map_err(inv_statement("AMPLIFICATION_SHADER <name>", id)),
+                "MESH_SHADER" => delimited(space, identifier, line_end).map(|r| shaders.push((r, ShaderType::Mesh))).map_err(inv_statement("MESH_SHADER <name>", id)),
+                "PIXEL_SHADER" => delimited(space, identifier, line_end).map(|r| shaders.push((r, ShaderType::Pixel))).map_err(inv_statement("PIXEL_SHADER <name>", id)),
                 "ROOT" => no_dup(&mut root_sig, id.clone(), delimited(space, identifier, line_end)).map_err(inv_statement("ROOT <root_sig>", id)),
                 _ => fail,
             }),

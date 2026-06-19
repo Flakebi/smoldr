@@ -18,7 +18,7 @@ use std::{ptr, slice, str};
 use half::f16;
 use miette::{Report, Result, bail, miette};
 use tracing::{debug, error, info, trace, warn};
-use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WAIT_OBJECT_0, WPARAM};
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WAIT_OBJECT_0, WPARAM};
 use windows::Win32::Graphics::Direct3D;
 use windows::Win32::Graphics::Direct3D::Dxc;
 use windows::Win32::Graphics::Direct3D12::*;
@@ -37,9 +37,9 @@ use crate::parser::Identifier;
 use crate::{
     Aabb, AccelStructConfig, CommandSignatureArgument, DataType, Directive, DispatchContent,
     DispatchType, Export, GeometryConfig, IdentifierIdx, IdentifierType, InputViewType,
-    PipelineKind, PipelineStateObjectType, ResultExt, RootSigConfig, RootSigConst, RootSigEntry,
-    RootSigTable, RootSigView, RootVal, ShaderReference, StateObjectConfig, TlasBlasConfig,
-    Transform, UnresolvedShaderTableRecord, ViewType, error,
+    PipelineKind, PipelineStateObjectType, PipelineType, ResultExt, RootSigConfig, RootSigConst,
+    RootSigEntry, RootSigTable, RootSigView, RootVal, ShaderReference, StateObjectConfig,
+    TlasBlasConfig, Transform, UnresolvedShaderTableRecord, ViewType, error,
 };
 
 #[cfg(feature = "enable_cpp")]
@@ -173,6 +173,12 @@ const RENDER_TARGETS: u32 = 2;
 
 struct Dx12Cleanup;
 
+struct Pipeline {
+    pipeline: ID3D12PipelineState,
+    root_sig: Option<IdentifierIdx>,
+    typ: PipelineType,
+}
+
 pub(crate) struct Dx12Backend {
     debug_controller: Option<ID3D12Debug1>,
     device: ID3D12Device7,
@@ -180,14 +186,20 @@ pub(crate) struct Dx12Backend {
     fence: ID3D12Fence1,
     fence_value: AtomicU64,
     command_allocator: ID3D12CommandAllocator,
-    command_list: ID3D12GraphicsCommandList4,
+    command_list: ID3D12GraphicsCommandList6,
     descriptor_heap: Option<ID3D12DescriptorHeap>,
     /// Amount of used bytes on the descriptor heap
     descriptor_heap_size: u64,
+    /// Descriptor heap for render targets
+    render_target_heap: Option<ID3D12DescriptorHeap>,
+    /// Amount of used bytes on the descriptor heap
+    render_target_heap_size: u64,
     query_heap: Option<ID3D12QueryHeap>,
     query_buffer: Option<ID3D12Resource2>,
     /// Caches if raytracing is supported.
     supports_raytracing: Option<bool>,
+    /// Caches if mesh shaders are supported.
+    supports_mesh_shader: Option<bool>,
 
     /// Compiled HLSL sources as DXIL containers
     objects: HashMap<IdentifierIdx, Dxc::IDxcBlob>,
@@ -196,8 +208,7 @@ pub(crate) struct Dx12Backend {
     shader_ids: HashMap<IdentifierIdx, ShaderId>,
     /// Buffer that stores the shader table and its stride
     shader_tables: HashMap<IdentifierIdx, (ID3D12Resource2, usize)>,
-    /// (pipeline, root signature)
-    pipelines: HashMap<IdentifierIdx, (ID3D12PipelineState, Option<IdentifierIdx>)>,
+    pipelines: HashMap<IdentifierIdx, Pipeline>,
     psos: HashMap<IdentifierIdx, ID3D12StateObject>,
     views: HashMap<IdentifierIdx, DescriptorHandles>,
     blas: HashMap<IdentifierIdx, ID3D12Resource2>,
@@ -211,8 +222,6 @@ struct Dx12Window {
     // swap_chain first, so it is dropped first
     swap_chain: Dxgi::IDXGISwapChain3,
     back_buffer_views: [D3D12_CPU_DESCRIPTOR_HANDLE; RENDER_TARGETS as usize],
-    /// Descriptor heap for render targets
-    render_target_heap: ID3D12DescriptorHeap,
 
     window: HWND,
     backend: Dx12Backend,
@@ -226,7 +235,7 @@ struct DescriptorHandles {
 }
 
 struct CommandList {
-    command_list: ID3D12GraphicsCommandList4,
+    command_list: ID3D12GraphicsCommandList6,
 }
 
 struct MappedBuffer<Mode: AccessMode> {
@@ -433,7 +442,7 @@ where Result<T, windows::core::Error>: crate::ResultExt<T>
 
 impl CommandList {
     fn new(
-        command_list: ID3D12GraphicsCommandList4, command_allocator: &ID3D12CommandAllocator,
+        command_list: ID3D12GraphicsCommandList6, command_allocator: &ID3D12CommandAllocator,
         name: &str, pipeline: Option<&ID3D12PipelineState>,
     ) -> Result<Self> {
         unsafe {
@@ -464,7 +473,7 @@ impl CommandList {
 }
 
 impl Deref for CommandList {
-    type Target = ID3D12GraphicsCommandList4;
+    type Target = ID3D12GraphicsCommandList6;
     fn deref(&self) -> &Self::Target { &self.command_list }
 }
 
@@ -520,6 +529,35 @@ impl Dx12Backend {
             cpu.ptr += offset as usize;
             gpu.ptr += offset;
             Ok(DescriptorHandles { cpu, gpu })
+        }
+    }
+
+    /// Creates a descriptor heap if there is not already one
+    fn create_render_target_view(&mut self) -> Result<D3D12_CPU_DESCRIPTOR_HANDLE> {
+        unsafe {
+            let heap = if let Some(h) = &self.render_target_heap {
+                h
+            } else {
+                let desc = D3D12_DESCRIPTOR_HEAP_DESC {
+                    Type: D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
+                    // TODO More than 2
+                    NumDescriptors: RENDER_TARGETS,
+                    ..Default::default()
+                };
+                let heap = self
+                    .device
+                    .CreateDescriptorHeap(&desc)
+                    .h_err(self, "Creating render target descriptor heap")?;
+                self.render_target_heap = Some(heap);
+                self.render_target_heap.as_ref().unwrap()
+            };
+            let offset = self.render_target_heap_size;
+            self.render_target_heap_size += u64::from(
+                self.device.GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV),
+            );
+            let mut cpu = heap.GetCPUDescriptorHandleForHeapStart();
+            cpu.ptr += offset as usize;
+            Ok(cpu)
         }
     }
 
@@ -756,6 +794,30 @@ impl Dx12Backend {
         }
     }
 
+    fn supports_mesh_shader(&mut self) -> Result<()> {
+        if self.supports_mesh_shader.is_none() {
+            let mut options = D3D12_FEATURE_DATA_D3D12_OPTIONS7::default();
+            unsafe {
+                self.device
+                    .CheckFeatureSupport(
+                        D3D12_FEATURE_D3D12_OPTIONS7,
+                        (&mut options as *mut D3D12_FEATURE_DATA_D3D12_OPTIONS7).cast(),
+                        mem::size_of_val(&options) as u32,
+                    )
+                    .h_err(self, "Check feature support")?;
+            }
+            debug!(?options, "D3D12 features");
+            self.supports_mesh_shader =
+                Some(options.MeshShaderTier != D3D12_MESH_SHADER_TIER_NOT_SUPPORTED);
+        }
+
+        if let Some(true) = self.supports_mesh_shader {
+            Ok(())
+        } else {
+            miette::bail!("Trying to use mesh shader, but it is not supported on this device");
+        }
+    }
+
     fn command_list(&self, name: &str) -> Result<CommandList> {
         CommandList::new(self.command_list.clone(), &self.command_allocator, name, None)
     }
@@ -952,20 +1014,14 @@ impl Dx12Window {
     /// Create views for the swap chain buffers. Store on the `render_target_heap`.
     fn create_back_buffer_views(&mut self) -> Result<()> {
         unsafe {
-            let cpu = self.render_target_heap.GetCPUDescriptorHandleForHeapStart();
-            let increment_size = self
-                .backend
-                .device
-                .GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
-
+            self.backend.render_target_heap_size = 0;
             for i in 0..RENDER_TARGETS {
                 let buffer: ID3D12Resource2 =
                     self.swap_chain.GetBuffer(i).h_err(&self.backend, "Get swap chain buffer")?;
                 buffer
                     .SetName(&HSTRING::from(&format!("Swap chain buffer {i}")))
                     .h_err(&self.backend, "Set swap chain buffer name")?;
-                let mut view = cpu;
-                view.ptr += (i as usize) * (increment_size as usize);
+                let view = self.backend.create_render_target_view()?;
                 self.backend.device.CreateRenderTargetView(&buffer, None, view);
                 self.back_buffer_views[i as usize] = view;
             }
@@ -1170,7 +1226,7 @@ impl Backend for Dx12Backend {
                 .handle_err(&device, "Creating command allocator")?;
 
             // CreateCommandList1 creates an already closed list
-            let command_list: ID3D12GraphicsCommandList4 = device
+            let command_list: ID3D12GraphicsCommandList6 = device
                 .CreateCommandList1(0, D3D12_COMMAND_LIST_TYPE_DIRECT, D3D12_COMMAND_LIST_FLAG_NONE)
                 .handle_err(&device, "Creating command list")?;
 
@@ -1184,9 +1240,12 @@ impl Backend for Dx12Backend {
                 command_list,
                 descriptor_heap: None,
                 descriptor_heap_size: 0,
+                render_target_heap: None,
+                render_target_heap_size: 0,
                 query_heap: None,
                 query_buffer: None,
                 supports_raytracing: None,
+                supports_mesh_shader: None,
 
                 objects: Default::default(),
                 buffers: Default::default(),
@@ -1277,21 +1336,9 @@ impl Backend for Dx12Backend {
                 .cast()
                 .h_err(&backend, "Casting swap chain")?;
 
-            // Create descriptor heap for render target views
-            let desc = D3D12_DESCRIPTOR_HEAP_DESC {
-                Type: D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
-                NumDescriptors: RENDER_TARGETS,
-                ..Default::default()
-            };
-            let render_target_heap: ID3D12DescriptorHeap = backend
-                .device
-                .CreateDescriptorHeap(&desc)
-                .h_err(&backend, "Creating render target descriptor heap")?;
-
             let mut window = Dx12Window {
                 swap_chain,
                 back_buffer_views: Default::default(),
-                render_target_heap,
                 window,
                 backend,
                 render_callback,
@@ -1962,11 +2009,188 @@ impl Backend for Dx12Backend {
         Ok(())
     }
 
+    fn create_mesh_pipeline(
+        &mut self, id: IdentifierIdx, amplification_shader: Option<IdentifierIdx>,
+        mesh_shader: IdentifierIdx, pixel_shader: Option<IdentifierIdx>,
+        root_sig: Option<IdentifierIdx>, dir: &Directive,
+    ) -> Result<()> {
+        let Directive::Pipeline { name, typ, .. } = dir else { unreachable!() };
+
+        unsafe {
+            let ams = amplification_shader.map(|s| &self.objects[&s]);
+            let ms = &self.objects[&mesh_shader];
+            let ps = pixel_shader.map(|s| &self.objects[&s]);
+            let root_sig_ref = if let Some(r) = root_sig {
+                std::mem::transmute_copy(&self.root_sigs[&r])
+            } else {
+                ManuallyDrop::new(None)
+            };
+
+            let blend_desc = D3D12_RENDER_TARGET_BLEND_DESC {
+                SrcBlend: D3D12_BLEND_ONE,
+                DestBlend: D3D12_BLEND_ZERO,
+                BlendOp: D3D12_BLEND_OP_ADD,
+                SrcBlendAlpha: D3D12_BLEND_ONE,
+                DestBlendAlpha: D3D12_BLEND_ZERO,
+                BlendOpAlpha: D3D12_BLEND_OP_ADD,
+                LogicOp: D3D12_LOGIC_OP_NOOP,
+                RenderTargetWriteMask: D3D12_COLOR_WRITE_ENABLE_ALL.0 as u8,
+                ..Default::default()
+            };
+
+            let stencilop_desc = D3D12_DEPTH_STENCILOP_DESC {
+                StencilFailOp: D3D12_STENCIL_OP_KEEP,
+                StencilDepthFailOp: D3D12_STENCIL_OP_KEEP,
+                StencilPassOp: D3D12_STENCIL_OP_KEEP,
+                StencilFunc: D3D12_COMPARISON_FUNC_ALWAYS,
+            };
+
+            // Same alignment as void*
+            #[repr(C, align(8))]
+            struct Subobject<T> {
+                typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE,
+                obj: T,
+            }
+
+            #[repr(C)]
+            struct Stream {
+                flags: Subobject<D3D12_PIPELINE_STATE_FLAGS>,
+                node_mask: Subobject<u32>,
+                root_sig: Subobject<ManuallyDrop<Option<ID3D12RootSignature>>>,
+                ps: Subobject<D3D12_SHADER_BYTECODE>,
+                ams: Subobject<D3D12_SHADER_BYTECODE>,
+                ms: Subobject<D3D12_SHADER_BYTECODE>,
+                blend_desc: Subobject<D3D12_BLEND_DESC>,
+                depth_stencil_state: Subobject<D3D12_DEPTH_STENCIL_DESC1>,
+                dsv_format: Subobject<dxgi::DXGI_FORMAT>,
+                rasterizer_state: Subobject<D3D12_RASTERIZER_DESC>,
+                rtv_formats: Subobject<D3D12_RT_FORMAT_ARRAY>,
+                sample_desc: Subobject<dxgi::DXGI_SAMPLE_DESC>,
+                sample_mask: Subobject<u32>,
+                cached_pso: Subobject<D3D12_CACHED_PIPELINE_STATE>,
+                view_instancing_desc: Subobject<D3D12_VIEW_INSTANCING_DESC>,
+            }
+
+            let mut stream = Stream {
+                flags: Subobject {
+                    typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_FLAGS,
+                    obj: D3D12_PIPELINE_STATE_FLAG_NONE,
+                },
+                node_mask: Subobject { typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_NODE_MASK, obj: 0 },
+                root_sig: Subobject {
+                    typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_ROOT_SIGNATURE,
+                    obj: root_sig_ref,
+                },
+                ps: Subobject {
+                    typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_PS,
+                    obj: D3D12_SHADER_BYTECODE {
+                        pShaderBytecode: ps.map(|s| s.GetBufferPointer()).unwrap_or_default(),
+                        BytecodeLength: ps.map(|s| s.GetBufferSize()).unwrap_or_default(),
+                    },
+                },
+                ams: Subobject {
+                    typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_AS,
+                    obj: D3D12_SHADER_BYTECODE {
+                        pShaderBytecode: ams.map(|s| s.GetBufferPointer()).unwrap_or_default(),
+                        BytecodeLength: ams.map(|s| s.GetBufferSize()).unwrap_or_default(),
+                    },
+                },
+                ms: Subobject {
+                    typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_MS,
+                    obj: D3D12_SHADER_BYTECODE {
+                        pShaderBytecode: ms.GetBufferPointer(),
+                        BytecodeLength: ms.GetBufferSize(),
+                    },
+                },
+                blend_desc: Subobject {
+                    typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_BLEND,
+                    obj: D3D12_BLEND_DESC { RenderTarget: [blend_desc; _], ..Default::default() },
+                },
+                depth_stencil_state: Subobject {
+                    typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL1,
+                    obj: D3D12_DEPTH_STENCIL_DESC1 {
+                        // TODO Enable depth
+                        DepthEnable: false.into(),
+                        DepthWriteMask: D3D12_DEPTH_WRITE_MASK_ALL,
+                        DepthFunc: D3D12_COMPARISON_FUNC_LESS,
+                        StencilEnable: false.into(),
+                        StencilReadMask: D3D12_DEFAULT_STENCIL_READ_MASK as u8,
+                        StencilWriteMask: D3D12_DEFAULT_STENCIL_WRITE_MASK as u8,
+                        FrontFace: stencilop_desc,
+                        BackFace: stencilop_desc,
+                        DepthBoundsTestEnable: false.into(),
+                    },
+                },
+                dsv_format: Subobject {
+                    typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL_FORMAT,
+                    // TODO
+                    obj: dxgi::DXGI_FORMAT_UNKNOWN,
+                },
+                rasterizer_state: Subobject {
+                    typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_RASTERIZER,
+                    obj: D3D12_RASTERIZER_DESC {
+                        FillMode: D3D12_FILL_MODE_SOLID,
+                        CullMode: D3D12_CULL_MODE_BACK,
+                        DepthClipEnable: true.into(),
+                        ..Default::default()
+                    },
+                },
+                rtv_formats: Subobject {
+                    typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_RENDER_TARGET_FORMATS,
+                    obj: D3D12_RT_FORMAT_ARRAY {
+                        RTFormats: [
+                            // TODO
+                            self.window_buffer.as_ref().unwrap().back_buffer.GetDesc().Format,
+                            Default::default(),
+                            Default::default(),
+                            Default::default(),
+                            Default::default(),
+                            Default::default(),
+                            Default::default(),
+                            Default::default(),
+                        ],
+                        NumRenderTargets: 1,
+                    },
+                },
+                sample_desc: Subobject {
+                    typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_SAMPLE_DESC,
+                    obj: dxgi::DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },
+                },
+                sample_mask: Subobject {
+                    typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_SAMPLE_MASK,
+                    obj: u32::MAX,
+                },
+                cached_pso: Subobject {
+                    typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_CACHED_PSO,
+                    obj: Default::default(),
+                },
+                view_instancing_desc: Subobject {
+                    typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_VIEW_INSTANCING,
+                    obj: Default::default(),
+                },
+            };
+
+            let desc = D3D12_PIPELINE_STATE_STREAM_DESC {
+                SizeInBytes: mem::size_of::<Stream>(),
+                pPipelineStateSubobjectStream: &mut stream as *mut _ as *mut _,
+            };
+
+            let pipeline: ID3D12PipelineState =
+                self.device.CreatePipelineState(&desc).h_err(self, "Creating mesh pipeline")?;
+
+            pipeline
+                .SetName(&HSTRING::from(&name.content))
+                .h_err(self, "Set mesh pipeline name")?;
+            self.pipelines.insert(id, Pipeline { pipeline, root_sig, typ: *typ });
+        }
+        Ok(())
+    }
+
     fn create_compute_pipeline(
         &mut self, id: IdentifierIdx, shader: IdentifierIdx, root_sig: Option<IdentifierIdx>,
         dir: &Directive,
     ) -> Result<()> {
-        let Directive::Pipeline { name, .. } = dir else { unreachable!() };
+        let Directive::Pipeline { name, typ, .. } = dir else { unreachable!() };
 
         unsafe {
             let shader = &self.objects[&shader];
@@ -1992,7 +2216,7 @@ impl Backend for Dx12Backend {
             pipeline
                 .SetName(&HSTRING::from(&name.content))
                 .h_err(self, "Set compute pipeline name")?;
-            self.pipelines.insert(id, (pipeline, root_sig));
+            self.pipelines.insert(id, Pipeline { pipeline, root_sig, typ: *typ });
         }
         Ok(())
     }
@@ -2397,12 +2621,41 @@ impl Backend for Dx12Backend {
         unsafe {
             let cmds;
             let pipe_root_sig;
+            let mut is_graphics = false;
+            let mut present_buffer = None;
             match content {
                 DispatchContent::Dispatch => {
-                    let (pipeline, root) = &self.pipelines[&pipeline];
-                    cmds = self.command_list_with_pipeline("dispatch", pipeline)?;
-                    cmds.SetPipelineState(pipeline);
-                    pipe_root_sig = *root;
+                    let pipeline = &self.pipelines[&pipeline];
+                    cmds = self.command_list_with_pipeline("dispatch", &pipeline.pipeline)?;
+                    is_graphics = pipeline.typ != PipelineType::Compute;
+                    // cmds.SetPipelineState(&pipeline.pipeline);
+                    pipe_root_sig = pipeline.root_sig;
+
+                    if is_graphics {
+                        let win =
+                            self.window_buffer.as_ref().expect("Only supported with --window");
+                        // TODO Assumes render target is window
+                        let buffer_desc = win.back_buffer.GetDesc1();
+                        cmds.RSSetViewports(&[D3D12_VIEWPORT {
+                            Width: buffer_desc.Width as f32,
+                            Height: buffer_desc.Height as f32,
+                            MaxDepth: 1.0,
+                            ..Default::default()
+                        }]);
+                        cmds.RSSetScissorRects(&[RECT {
+                            right: buffer_desc.Width as i32,
+                            bottom: buffer_desc.Height as i32,
+                            ..Default::default()
+                        }]);
+                        resource_barrier!(cmds(
+                            &win.back_buffer,
+                            D3D12_RESOURCE_STATE_PRESENT,
+                            D3D12_RESOURCE_STATE_RENDER_TARGET,
+                        ));
+                        cmds.OMSetRenderTargets(1, Some(&win.back_buffer_view), false, None);
+                        // cmds.ClearRenderTargetView(win.back_buffer_view, &[0.0; 4], None);
+                        present_buffer = Some(win.back_buffer.clone());
+                    }
                 }
                 DispatchContent::DispatchRays { .. } => {
                     let pso = &self.psos[&pipeline];
@@ -2412,10 +2665,11 @@ impl Backend for Dx12Backend {
                 }
                 DispatchContent::ExecuteIndirect { pipeline_kind, .. } => match pipeline_kind {
                     PipelineKind::Pipeline => {
-                        let (pipeline, root) = &self.pipelines[&pipeline];
-                        cmds = self.command_list_with_pipeline("indirect dispatch", pipeline)?;
-                        cmds.SetPipelineState(pipeline);
-                        pipe_root_sig = *root;
+                        let pipeline = &self.pipelines[&pipeline];
+                        cmds = self
+                            .command_list_with_pipeline("indirect dispatch", &pipeline.pipeline)?;
+                        cmds.SetPipelineState(&pipeline.pipeline);
+                        pipe_root_sig = pipeline.root_sig;
                     }
                     PipelineKind::PipelineStateObject => {
                         cmds = self.command_list("indirect dispatch")?;
@@ -2426,7 +2680,15 @@ impl Backend for Dx12Backend {
                 },
             }
 
-            cmds.SetComputeRootSignature(root_sig.or(pipe_root_sig).map(|r| &self.root_sigs[&r]));
+            if is_graphics {
+                cmds.SetGraphicsRootSignature(
+                    root_sig.or(pipe_root_sig).map(|r| &self.root_sigs[&r]),
+                );
+            } else {
+                cmds.SetComputeRootSignature(
+                    root_sig.or(pipe_root_sig).map(|r| &self.root_sigs[&r]),
+                );
+            }
             if let Some(heap) = self.descriptor_heap.clone() {
                 cmds.SetDescriptorHeaps(&[Some(heap)]);
             } else {
@@ -2435,23 +2697,41 @@ impl Backend for Dx12Backend {
 
             // Binds
             for (b, view) in root_val.binds.iter().zip(ids.binds.iter()) {
-                cmds.SetComputeRootDescriptorTable(b.index, self.views[view].gpu);
+                if is_graphics {
+                    cmds.SetGraphicsRootDescriptorTable(b.index, self.views[view].gpu);
+                } else {
+                    cmds.SetComputeRootDescriptorTable(b.index, self.views[view].gpu);
+                }
             }
 
             // Views
             for (v, buffer) in root_val.views.iter().zip(ids.views.iter()) {
                 match v.typ.unwrap() {
                     ViewType::Uav => {
-                        cmds.SetComputeRootUnorderedAccessView(
-                            v.index,
-                            self.buffers[buffer].GetGPUVirtualAddress(),
-                        );
+                        if is_graphics {
+                            cmds.SetGraphicsRootUnorderedAccessView(
+                                v.index,
+                                self.buffers[buffer].GetGPUVirtualAddress(),
+                            );
+                        } else {
+                            cmds.SetComputeRootUnorderedAccessView(
+                                v.index,
+                                self.buffers[buffer].GetGPUVirtualAddress(),
+                            );
+                        }
                     }
                     ViewType::Srv => {
-                        cmds.SetComputeRootShaderResourceView(
-                            v.index,
-                            self.buffers[buffer].GetGPUVirtualAddress(),
-                        );
+                        if is_graphics {
+                            cmds.SetGraphicsRootShaderResourceView(
+                                v.index,
+                                self.buffers[buffer].GetGPUVirtualAddress(),
+                            );
+                        } else {
+                            cmds.SetComputeRootShaderResourceView(
+                                v.index,
+                                self.buffers[buffer].GetGPUVirtualAddress(),
+                            );
+                        }
                     }
                 }
             }
@@ -2460,13 +2740,13 @@ impl Backend for Dx12Backend {
             for c in &ids.consts {
                 let mut buf = vec![0; c.content.len()];
                 c.content.fill(&mut buf);
-                cmds.SetComputeRoot32BitConstants(
-                    c.index,
-                    u32::try_from(buf.len() / mem::size_of::<u32>())
-                        .context("Too many root constants")?,
-                    buf.as_ptr().cast(),
-                    0,
-                );
+                let len = u32::try_from(buf.len() / mem::size_of::<u32>())
+                    .context("Too many root constants")?;
+                if is_graphics {
+                    cmds.SetGraphicsRoot32BitConstants(c.index, len, buf.as_ptr().cast(), 0);
+                } else {
+                    cmds.SetComputeRoot32BitConstants(c.index, len, buf.as_ptr().cast(), 0);
+                }
             }
 
             let query_heap = self.get_query_heap()?.clone();
@@ -2474,7 +2754,16 @@ impl Backend for Dx12Backend {
             match content {
                 DispatchContent::Dispatch => {
                     let DispatchType::Dispatch { dimensions } = typ else { unreachable!() };
-                    cmds.Dispatch(dimensions.0[0], dimensions.0[1], dimensions.0[2]);
+                    self.supports_mesh_shader()?;
+                    let pipeline = &self.pipelines[&pipeline];
+                    match pipeline.typ {
+                        PipelineType::Compute => {
+                            cmds.Dispatch(dimensions.0[0], dimensions.0[1], dimensions.0[2])
+                        }
+                        PipelineType::Mesh => {
+                            cmds.DispatchMesh(dimensions.0[0], dimensions.0[1], dimensions.0[2])
+                        }
+                    }
                 }
                 DispatchContent::DispatchRays { tables } => {
                     let DispatchType::DispatchRays { dimensions, .. } = typ else { unreachable!() };
@@ -2586,6 +2875,14 @@ impl Backend for Dx12Backend {
                 self.query_buffer.as_ref().unwrap(),
                 0,
             );
+
+            if let Some(buffer) = present_buffer {
+                resource_barrier!(cmds(
+                    &buffer,
+                    D3D12_RESOURCE_STATE_RENDER_TARGET,
+                    D3D12_RESOURCE_STATE_PRESENT,
+                ));
+            }
 
             cmds.run(self)?;
 

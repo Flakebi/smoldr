@@ -101,6 +101,13 @@ pub(crate) trait Backend {
     ) -> Result<()> {
         Ok(())
     }
+    fn create_mesh_pipeline(
+        &mut self, _id: IdentifierIdx, _amplification_shader: Option<IdentifierIdx>,
+        _mesh_shader: IdentifierIdx, _pixel_shader: Option<IdentifierIdx>,
+        _root_sig: Option<IdentifierIdx>, _dir: &Directive,
+    ) -> Result<()> {
+        Ok(())
+    }
     fn create_pipeline_state_object(
         &mut self, _id: IdentifierIdx, _add_to: Option<IdentifierIdx>, _libs: &[IdentifierIdx],
         _collections: &[IdentifierIdx], _dir: &Directive,

@@ -315,12 +315,21 @@ struct RootSigConst {
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 enum PipelineType {
     Compute,
+    Mesh,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 enum PipelineStateObjectType {
     Pipeline,
     Collection,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+enum ShaderType {
+    Compute,
+    Amplification,
+    Mesh,
+    Pixel,
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -594,7 +603,7 @@ enum Directive {
     Pipeline {
         name: Identifier,
         typ: PipelineType,
-        shaders: Vec<Identifier>,
+        shaders: Vec<(Identifier, ShaderType)>,
         /// Root signature
         root_sig: Option<Identifier>,
     },
@@ -1437,25 +1446,60 @@ impl State {
             }
             Directive::Pipeline { name, typ, shaders, root_sig } => {
                 let id = self.add_identifier(name.clone(), IdentifierType::Pipeline)?;
-                assert_eq!(*typ, PipelineType::Compute, "Unexpected pipeline type");
                 let shaders = shaders
                     .iter()
-                    .map(|s| self.get_type(s, IdentifierType::Object))
+                    .map(|s| Ok((self.get_type(&s.0, IdentifierType::Object)?, s.1)))
                     .collect::<Result<Vec<_>>>()?;
-
-                if shaders.len() != 1 {
-                    return Err(error::InvalidShaderCount {
-                        name: name.clone(),
-                        shader_count: shaders.len(),
-                    }
-                    .into());
-                }
 
                 let root_sig = root_sig
                     .as_ref()
                     .map(|r| self.get_type(r, IdentifierType::RootSig))
                     .transpose()?;
-                backend.create_compute_pipeline(id, shaders[0], root_sig, dir)?;
+                match typ {
+                    PipelineType::Compute => {
+                        if shaders.len() != 1 {
+                            return Err(error::InvalidShaderCount {
+                                name: name.clone(),
+                                shader_count: shaders.len(),
+                            }
+                            .into());
+                        }
+                        // TODO Assert compute shader
+
+                        backend.create_compute_pipeline(id, shaders[0].0, root_sig, dir)?
+                    }
+                    PipelineType::Mesh => {
+                        let mut ams = None;
+                        let mut ms = None;
+                        let mut ps = None;
+                        for s in shaders {
+                            match s.1 {
+                                ShaderType::Compute => panic!("No compute in mesh pipelines"),
+                                ShaderType::Amplification => {
+                                    assert!(ams.is_none(), "No more than one amplification shader");
+                                    ams = Some(s.0);
+                                }
+                                ShaderType::Mesh => {
+                                    assert!(ms.is_none(), "No more than one mesh shader");
+                                    ms = Some(s.0);
+                                }
+                                ShaderType::Pixel => {
+                                    assert!(ps.is_none(), "No more than one pixel shader");
+                                    ps = Some(s.0);
+                                }
+                            }
+                        }
+
+                        backend.create_mesh_pipeline(
+                            id,
+                            ams,
+                            ms.expect("Mesh shader needed"),
+                            ps,
+                            root_sig,
+                            dir,
+                        )?
+                    }
+                }
             }
             Directive::PipelineStateObject { name, add_to, libs, collections, .. } => {
                 let id = self.add_identifier(name.clone(), IdentifierType::PipelineStateObject)?;
