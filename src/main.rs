@@ -254,6 +254,7 @@ enum ValueContent {
 enum UnresolvedValueContent {
     Resolved(ValueContent),
     Raw { values: UnresolvedValues },
+    File(Identifier),
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -1059,10 +1060,12 @@ impl ValueContent {
 }
 
 impl UnresolvedValueContent {
-    fn len(&self) -> usize {
+    #[allow(dead_code)]
+    fn unwrap_len(&self) -> usize {
         match self {
             Self::Resolved(v) => v.len(),
             Self::Raw { values } => values.byte_len(),
+            Self::File(_) => panic!("Cannot get length of file value"),
         }
     }
 
@@ -1071,6 +1074,28 @@ impl UnresolvedValueContent {
             Self::Resolved(c) => Ok(c.clone()),
             Self::Raw { values } => {
                 Ok(ValueContent::Raw { values: values.resolve(state, backend)? })
+            }
+            Self::File(path) => {
+                // Make path relative to the file it is included from
+                let new_path = Path::new(&path.content);
+                let cur_path = &state.source_files[path.source_file].1;
+                let path =
+                    cur_path.parent().map(|p| p.join(new_path)).unwrap_or_else(|| new_path.into());
+                let data = std::fs::read(&path)
+                    .context(format!("Input file: {}", path.display()))
+                    .wrap_err("Failed to open input file")?;
+                let mut values = Vec::new();
+                // Store in u64 chunks to save overhead
+                for c in data.chunks(mem::size_of::<u64>()) {
+                    if c.len() == mem::size_of::<u64>() {
+                        values.push(Value::U64(u64::from_le_bytes(c.try_into().unwrap())));
+                    } else {
+                        for b in c {
+                            values.push(Value::U8(*b));
+                        }
+                    }
+                }
+                Ok(ValueContent::Raw { values: Values { data: values } })
             }
         }
     }
@@ -1371,7 +1396,7 @@ impl State {
             Directive::Buffer { name, content, .. } => {
                 let id = self.add_identifier(name.clone(), IdentifierType::Buffer)?;
                 let content = content.resolve(self, backend)?;
-                backend.create_buffer(id, dir)?;
+                backend.create_buffer(id, content.len(), dir)?;
                 backend.upload(id, &mut |data| content.fill(data))?;
             }
             Directive::RootSig { name, .. } => {

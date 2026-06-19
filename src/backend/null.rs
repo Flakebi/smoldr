@@ -94,10 +94,8 @@ impl Backend for NullBackend {
         Ok(())
     }
 
-    fn create_buffer(&mut self, id: IdentifierIdx, dir: &Directive) -> Result<()> {
-        let Directive::Buffer { content, .. } = dir else { unreachable!() };
-
-        self.buffers.insert(id, vec![0; content.len()]);
+    fn create_buffer(&mut self, id: IdentifierIdx, len: usize, _: &Directive) -> Result<()> {
+        self.buffers.insert(id, vec![0; len]);
         Ok(())
     }
 

@@ -717,7 +717,8 @@ impl Dx12Backend {
                     .iter()
                     .map(|b| b.index as usize * el_size)
                     .chain(r.root_val.consts.iter().map(|c| {
-                        c.index as usize * el_size + next_multiple_of(c.content.len(), el_size)
+                        c.index as usize * el_size
+                            + next_multiple_of(c.content.unwrap_len(), el_size)
                     }))
                     .chain(r.root_val.views.iter().map(|v| v.index as usize * el_size))
             })
@@ -1717,11 +1718,11 @@ impl Backend for Dx12Backend {
         Ok(())
     }
 
-    fn create_buffer(&mut self, id: IdentifierIdx, dir: &Directive) -> Result<()> {
-        let Directive::Buffer { name, content, .. } = dir else { unreachable!() };
+    fn create_buffer(&mut self, id: IdentifierIdx, len: usize, dir: &Directive) -> Result<()> {
+        let Directive::Buffer { name, .. } = dir else { unreachable!() };
 
         let buffer = self.create_buffer_intern(
-            u64::try_from(content.len()).unwrap(),
+            u64::try_from(len).unwrap(),
             0,
             D3D12_HEAP_TYPE_DEFAULT,
             D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,

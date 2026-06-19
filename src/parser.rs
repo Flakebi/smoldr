@@ -881,24 +881,33 @@ fn content_raw(s: &mut Input) -> Result<UnresolvedValueContent> {
 
     ("END", line_end).parse_next(s)?;
 
-    let content = UnresolvedValueContent::Raw { values: UnresolvedValues { data: data.content } };
+    let values = UnresolvedValues { data: data.content };
 
     // Check size
-    if usize::try_from(size.content).unwrap() != content.len() {
+    if usize::try_from(size.content).unwrap() != values.byte_len() {
         return Err(ErrMode::Backtrack(ParserError::RawSizeMismatch {
             size,
             content: data.span,
-            content_size: content.len(),
+            content_size: values.byte_len(),
         }));
     }
 
-    Ok(content)
+    Ok(UnresolvedValueContent::Raw { values })
+}
+
+fn content_file(s: &mut Input) -> Result<UnresolvedValueContent> {
+    space(s)?;
+    let path = span_obj(string).parse_next(s)?;
+    line_end(s)?;
+
+    Ok(UnresolvedValueContent::File(path))
 }
 
 fn content(s: &mut Input) -> Result<UnresolvedValueContent> {
     dispatch! {word;
         "DATA_TYPE" => cut_err(content_typed),
         "RAW" => cut_err(content_raw),
+        "FILE" => cut_err(content_file),
         _ => fail,
     }
     .parse_next(s)
