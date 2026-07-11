@@ -236,6 +236,13 @@ bitflags! {
         const EXTERNAL_DEP_ON_LOCAL = 2;
         const ADD_TO_SO = 4;
     }
+
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+    struct PipelineStateConfig: u32 {
+        const TOOL_DEBUG = 1;
+        const DYNAMIC_DEPTH_BIAS = 4;
+        const DYNAMIC_INDEX_BUFFER_STRIP_CU = 8;
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -548,6 +555,17 @@ enum CommandSignatureArgument {
     DispatchRays,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+struct Blend {
+    src,
+    dst,
+    op,
+    alpha_src,
+    alpha_dst,
+    alpha_op,
+    logic_op,
+}
+
 /// A directive in a script file
 #[derive(Clone, Debug, PartialEq)]
 enum Directive {
@@ -606,6 +624,11 @@ enum Directive {
         shaders: Vec<(Identifier, ShaderType)>,
         /// Root signature
         root_sig: Option<Identifier>,
+        /// Only for graphics pipelines
+        config: Option<PipelineStateConfig>,
+        /// Only for graphics pipelines
+        blend: Option<Blend>,
+        // TODO blend, depth_stencil, dsv, rasterizer, rtv, sample, view_instancing
     },
     PipelineStateObject {
         name: Identifier,
