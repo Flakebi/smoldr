@@ -252,6 +252,12 @@ bitflags! {
         const ALPHA = 8;
         const ALL = 15;
     }
+
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+    struct ViewInstancingConfig: u32 {
+        const NONE = 0;
+        const ENABLE_VIEW_INSTANCE_MASKING = 1;
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -426,6 +432,28 @@ enum ComparisonFunc {
     GreaterEqual,
     #[default]
     Always,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+enum DepthWriteMask {
+    Zero,
+    #[default]
+    All,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+enum FillMode {
+    Wireframe = 2,
+    #[default]
+    Solid,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+enum CullMode {
+    None = 1,
+    Front,
+    #[default]
+    Back,
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -667,7 +695,7 @@ enum TargetBlendMode {
 #[derive(Clone, Debug, Default, PartialEq)]
 struct TargetBlendDesc {
     desc: TargetBlendMode,
-    render_target_write_mask: ColorWriteEnable,
+    write_mask: ColorWriteEnable,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -684,11 +712,45 @@ struct BlendDesc {
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
-struct DepthStencil {
+struct DepthStencilOpDesc {
     fail_op: StencilOp,
     depth_fail_op: StencilOp,
     pass_op: StencilOp,
     func: ComparisonFunc,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct DepthStencil {
+    depth_enable: bool,
+    depth_write_mask: DepthWriteMask,
+    depth_func: ComparisonFunc,
+    stencil_enable: bool,
+    stencil_read_mask: u8,
+    stencil_write_mask: u8,
+    front_face: DepthStencilOpDesc,
+    back_face: DepthStencilOpDesc,
+    depth_bounds_test_enable: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct RasterizerState {
+    fill_mode: FillMode,
+    cull_mode: CullMode,
+    front_counter_clockwise: bool,
+    depth_bias: i32,
+    depth_bias_clamp: f32,
+    slope_scaled_depth_bias: f32,
+    depth_clip_enable: bool,
+    multisample_enable: bool,
+    antialiased_line_enable: bool,
+    forced_sample_count: u32,
+    conservative_raster: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct ViewInstancingLocation {
+    viewport_array_index: u32,
+    render_target_array_index: u32,
 }
 
 /// A directive in a script file
@@ -753,7 +815,12 @@ enum Directive {
         blend: Option<BlendDesc>,
         /// Only for graphics pipelines
         depth_stencil: Option<DepthStencil>,
-        // TODO dsv, rasterizer, rtv, sample, view_instancing
+        /// Only for graphics pipelines
+        rasterizer_state: Option<RasterizerState>,
+        /// Only for graphics pipelines
+        view_instancing: Vec<ViewInstancingLocation>,
+        /// Only for graphics pipelines
+        view_instancing_config: Option<ViewInstancingConfig>,
         /// Only for graphics pipelines
         config: Option<PipelineStateConfig>,
     },
@@ -923,6 +990,40 @@ impl Default for TargetBlend {
 
 impl Default for TargetBlendDescs {
     fn default() -> Self { Self::All(Default::default()) }
+}
+
+impl Default for DepthStencil {
+    fn default() -> Self {
+        Self {
+            depth_enable: true,
+            depth_write_mask: Default::default(),
+            depth_func: ComparisonFunc::Less,
+            stencil_enable: Default::default(),
+            stencil_read_mask: 0xff,
+            stencil_write_mask: 0xff,
+            front_face: Default::default(),
+            back_face: Default::default(),
+            depth_bounds_test_enable: Default::default(),
+        }
+    }
+}
+
+impl Default for RasterizerState {
+    fn default() -> Self {
+        Self {
+            fill_mode: Default::default(),
+            cull_mode: Default::default(),
+            front_counter_clockwise: Default::default(),
+            depth_bias: Default::default(),
+            depth_bias_clamp: Default::default(),
+            slope_scaled_depth_bias: Default::default(),
+            depth_clip_enable: true,
+            multisample_enable: Default::default(),
+            antialiased_line_enable: Default::default(),
+            forced_sample_count: Default::default(),
+            conservative_raster: Default::default(),
+        }
+    }
 }
 
 impl Fill {

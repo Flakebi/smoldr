@@ -648,6 +648,51 @@ For traditional pipelines, it defaults to the root signature specified in the pi
 
 * `root_identifier` is the root signature.
 
+#### BLEND
+
+```
+BLEND
+  ALPHA_TO_COVERAGE_ENABLE
+  RENDER_TARGET [<i>|ALL]
+    WRITE_MASK [RED] [GREEN] [BLUE] [ALPHA] [ALL]
+    BLEND
+      OP <blend_op>
+      SRC <blend>
+      DST <blend>
+      ALPHA_OP <blend_op>
+      ALPHA_SRC <blend>
+      ALPHA_DST <blend>
+    END
+    LOGIC
+      OP <logic_op>
+    END
+  END
+END
+```
+
+Specify the blend mode for a graphics dispatch.
+Defaults to TODO, single values can be changed by setting only these.
+
+* `ALPHA_TO_COVERAGE_ENABLE` sets the `alpha_to_coverage_enable` to `true`.
+* `i` is the render target index to configure. `ALL` sets the same config to all render targets.
+
+#### DEPTH_STENCIL
+
+```
+DEPTH_STENCIL
+  FAIL_OP <stencil_op>
+  DEPTH_FAIL_OP <stencil_op>
+  PASS_OP <stencil_op>
+  FUNC <comparison_func>
+END
+```
+
+Specify the depth stencil mode for a graphics dispatch.
+Defaults to TODO, single values can be changed by setting only these.
+
+* `ALPHA_TO_COVERAGE_ENABLE` sets the `alpha_to_coverage_enable` to `true`.
+* `i` is the render target index to configure. `ALL` sets the same config to all render targets.
+
 #### Example
 
 ```

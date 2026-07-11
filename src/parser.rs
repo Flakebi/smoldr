@@ -1041,6 +1041,9 @@ fn pipeline(s: &mut Input) -> Result<Directive> {
         // TODO
         blend: empty.value(None),
         depth_stencil: empty.value(None),
+        rasterizer_state: empty.value(None),
+        view_instancing: empty.value(Vec::new()),
+        view_instancing_config: empty.value(None),
         config: empty.value(None),
         _: ("END", line_end),
     }}

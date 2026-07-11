@@ -18,7 +18,7 @@ use std::{ptr, slice, str};
 use half::f16;
 use miette::{Report, Result, bail, miette};
 use tracing::{debug, error, info, trace, warn};
-use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WAIT_OBJECT_0, WPARAM};
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WAIT_OBJECT_0, WPARAM};
 use windows::Win32::Graphics::Direct3D;
 use windows::Win32::Graphics::Direct3D::Dxc;
 use windows::Win32::Graphics::Direct3D12::*;
@@ -177,6 +177,13 @@ const _: () = assert!(ColorWriteEnable::BLUE.bits() == D3D12_COLOR_WRITE_ENABLE_
 const _: () = assert!(ColorWriteEnable::ALPHA.bits() == D3D12_COLOR_WRITE_ENABLE_ALPHA.0 as u8);
 const _: () = assert!(ColorWriteEnable::ALL.bits() == D3D12_COLOR_WRITE_ENABLE_ALL.0 as u8);
 
+const _: () =
+    assert!(ViewInstancingConfig::NONE.bits() == D3D12_VIEW_INSTANCING_FLAG_NONE.0 as u32);
+const _: () = assert!(
+    ViewInstancingConfig::ENABLE_VIEW_INSTANCE_MASKING.bits()
+        == D3D12_VIEW_INSTANCING_FLAG_ENABLE_VIEW_INSTANCE_MASKING.0 as u32
+);
+
 const _: () = assert!(Blend::Zero as u32 == D3D12_BLEND_ZERO.0 as u32);
 const _: () = assert!(Blend::One as u32 == D3D12_BLEND_ONE.0 as u32);
 const _: () = assert!(Blend::SrcColor as u32 == D3D12_BLEND_SRC_COLOR.0 as u32);
@@ -240,6 +247,16 @@ const _: () = assert!(ComparisonFunc::NotEqual as u32 == D3D12_COMPARISON_FUNC_N
 const _: () =
     assert!(ComparisonFunc::GreaterEqual as u32 == D3D12_COMPARISON_FUNC_GREATER_EQUAL.0 as u32);
 const _: () = assert!(ComparisonFunc::Always as u32 == D3D12_COMPARISON_FUNC_ALWAYS.0 as u32);
+
+const _: () = assert!(DepthWriteMask::Zero as u32 == D3D12_DEPTH_WRITE_MASK_ZERO.0 as u32);
+const _: () = assert!(DepthWriteMask::All as u32 == D3D12_DEPTH_WRITE_MASK_ALL.0 as u32);
+
+const _: () = assert!(FillMode::Wireframe as u32 == D3D12_FILL_MODE_WIREFRAME.0 as u32);
+const _: () = assert!(FillMode::Solid as u32 == D3D12_FILL_MODE_SOLID.0 as u32);
+
+const _: () = assert!(CullMode::None as u32 == D3D12_CULL_MODE_NONE.0 as u32);
+const _: () = assert!(CullMode::Front as u32 == D3D12_CULL_MODE_FRONT.0 as u32);
+const _: () = assert!(CullMode::Back as u32 == D3D12_CULL_MODE_BACK.0 as u32);
 
 // End assertion block
 
@@ -2091,12 +2108,24 @@ impl Backend for Dx12Backend {
         mesh_shader: IdentifierIdx, pixel_shader: Option<IdentifierIdx>,
         root_sig: Option<IdentifierIdx>, dir: &Directive,
     ) -> Result<()> {
-        let Directive::Pipeline { name, typ, blend, depth_stencil, config, .. } = dir else {
+        let Directive::Pipeline {
+            name,
+            typ,
+            blend,
+            depth_stencil,
+            rasterizer_state,
+            view_instancing,
+            view_instancing_config,
+            config,
+            ..
+        } = dir
+        else {
             unreachable!()
         };
 
         let blend = blend.clone().unwrap_or_default();
         let depth_stencil = depth_stencil.clone().unwrap_or_default();
+        let rasterizer_state = rasterizer_state.clone().unwrap_or_default();
         let config = config.unwrap_or_default();
 
         unsafe {
@@ -2111,7 +2140,7 @@ impl Backend for Dx12Backend {
 
             let into_target_blend_desc = |desc: TargetBlendDesc| {
                 let mut res = D3D12_RENDER_TARGET_BLEND_DESC::default();
-                res.RenderTargetWriteMask = desc.render_target_write_mask.bits();
+                res.RenderTargetWriteMask = desc.write_mask.bits();
                 match desc.desc {
                     TargetBlendMode::None => {}
                     TargetBlendMode::Blend(blend) => {
@@ -2131,6 +2160,13 @@ impl Backend for Dx12Backend {
                 res
             };
 
+            let into_depth_stencil_op = |desc: DepthStencilOpDesc| D3D12_DEPTH_STENCILOP_DESC {
+                StencilFailOp: D3D12_STENCIL_OP(desc.fail_op as i32),
+                StencilDepthFailOp: D3D12_STENCIL_OP(desc.depth_fail_op as i32),
+                StencilPassOp: D3D12_STENCIL_OP(desc.pass_op as i32),
+                StencilFunc: D3D12_COMPARISON_FUNC(desc.func as i32),
+            };
+
             let blend_desc = D3D12_BLEND_DESC {
                 AlphaToCoverageEnable: blend.alpha_to_coverage_enable.into(),
                 IndependentBlendEnable: matches!(
@@ -2144,11 +2180,49 @@ impl Backend for Dx12Backend {
                 },
             };
 
-            let stencilop_desc = D3D12_DEPTH_STENCILOP_DESC {
-                StencilFailOp: D3D12_STENCIL_OP(depth_stencil.fail_op as i32),
-                StencilDepthFailOp: D3D12_STENCIL_OP(depth_stencil.depth_fail_op as i32),
-                StencilPassOp: D3D12_STENCIL_OP(depth_stencil.pass_op as i32),
-                StencilFunc: D3D12_COMPARISON_FUNC(depth_stencil.func as i32),
+            let depth_stencil_state = D3D12_DEPTH_STENCIL_DESC1 {
+                DepthEnable: depth_stencil.depth_enable.into(),
+                DepthWriteMask: D3D12_DEPTH_WRITE_MASK(depth_stencil.depth_write_mask as i32),
+                DepthFunc: D3D12_COMPARISON_FUNC(depth_stencil.depth_func as i32),
+                StencilEnable: depth_stencil.stencil_enable.into(),
+                StencilReadMask: depth_stencil.stencil_read_mask,
+                StencilWriteMask: depth_stencil.stencil_write_mask,
+                FrontFace: into_depth_stencil_op(depth_stencil.front_face),
+                BackFace: into_depth_stencil_op(depth_stencil.back_face),
+                DepthBoundsTestEnable: depth_stencil.depth_bounds_test_enable.into(),
+            };
+
+            let rasterizer_desc = D3D12_RASTERIZER_DESC {
+                FillMode: D3D12_FILL_MODE(rasterizer_state.fill_mode as i32),
+                CullMode: D3D12_CULL_MODE(rasterizer_state.cull_mode as i32),
+                FrontCounterClockwise: rasterizer_state.front_counter_clockwise.into(),
+                DepthBias: rasterizer_state.depth_bias,
+                DepthBiasClamp: rasterizer_state.depth_bias_clamp,
+                SlopeScaledDepthBias: rasterizer_state.slope_scaled_depth_bias,
+                DepthClipEnable: rasterizer_state.depth_clip_enable.into(),
+                MultisampleEnable: rasterizer_state.multisample_enable.into(),
+                AntialiasedLineEnable: rasterizer_state.antialiased_line_enable.into(),
+                ForcedSampleCount: rasterizer_state.forced_sample_count,
+                ConservativeRaster: D3D12_CONSERVATIVE_RASTERIZATION_MODE(
+                    if rasterizer_state.conservative_raster { 1 } else { 0 },
+                ),
+            };
+
+            let view_instance_locations = view_instancing
+                .iter()
+                .map(|l| D3D12_VIEW_INSTANCE_LOCATION {
+                    ViewportArrayIndex: l.viewport_array_index,
+                    RenderTargetArrayIndex: l.render_target_array_index,
+                })
+                .collect::<Vec<_>>();
+
+            let view_instancing_desc = D3D12_VIEW_INSTANCING_DESC {
+                ViewInstanceCount: u32::try_from(view_instance_locations.len())
+                    .context("Too many view instances")?,
+                pViewInstanceLocations: view_instance_locations.as_ptr(),
+                Flags: D3D12_VIEW_INSTANCING_FLAGS(
+                    view_instancing_config.unwrap_or_default().bits() as i32,
+                ),
             };
 
             // Same alignment as void*
@@ -2214,18 +2288,7 @@ impl Backend for Dx12Backend {
                 },
                 depth_stencil_state: Subobject {
                     typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL1,
-                    obj: D3D12_DEPTH_STENCIL_DESC1 {
-                        // TODO Enable depth
-                        DepthEnable: false.into(),
-                        DepthWriteMask: D3D12_DEPTH_WRITE_MASK_ALL,
-                        DepthFunc: D3D12_COMPARISON_FUNC_LESS,
-                        StencilEnable: false.into(),
-                        StencilReadMask: D3D12_DEFAULT_STENCIL_READ_MASK as u8,
-                        StencilWriteMask: D3D12_DEFAULT_STENCIL_WRITE_MASK as u8,
-                        FrontFace: stencilop_desc,
-                        BackFace: stencilop_desc,
-                        DepthBoundsTestEnable: false.into(),
-                    },
+                    obj: depth_stencil_state,
                 },
                 dsv_format: Subobject {
                     typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL_FORMAT,
@@ -2234,12 +2297,7 @@ impl Backend for Dx12Backend {
                 },
                 rasterizer_state: Subobject {
                     typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_RASTERIZER,
-                    obj: D3D12_RASTERIZER_DESC {
-                        FillMode: D3D12_FILL_MODE_SOLID,
-                        CullMode: D3D12_CULL_MODE_BACK,
-                        DepthClipEnable: true.into(),
-                        ..Default::default()
-                    },
+                    obj: rasterizer_desc,
                 },
                 rtv_formats: Subobject {
                     typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_RENDER_TARGET_FORMATS,
@@ -2273,7 +2331,7 @@ impl Backend for Dx12Backend {
                 },
                 view_instancing_desc: Subobject {
                     typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_VIEW_INSTANCING,
-                    obj: Default::default(),
+                    obj: view_instancing_desc,
                 },
             };
 
@@ -2729,7 +2787,7 @@ impl Backend for Dx12Backend {
             let cmds;
             let pipe_root_sig;
             let mut is_graphics = false;
-            let mut present_buffer = None;
+            // let mut present_buffer = None;
             match content {
                 DispatchContent::Dispatch => {
                     let pipeline = &self.pipelines[&pipeline];
@@ -2983,13 +3041,13 @@ impl Backend for Dx12Backend {
                 0,
             );
 
-            if let Some(buffer) = present_buffer {
+            /*if let Some(buffer) = present_buffer {
                 resource_barrier!(cmds(
                     &buffer,
                     D3D12_RESOURCE_STATE_RENDER_TARGET,
                     D3D12_RESOURCE_STATE_PRESENT,
                 ));
-            }
+            }*/
 
             cmds.run(self)?;
 
