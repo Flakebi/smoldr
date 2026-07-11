@@ -32,15 +32,10 @@ use windows::Win32::UI::WindowsAndMessaging::*;
 use windows::core::w;
 use windows::core::{HSTRING, Interface, PCSTR, PCWSTR};
 
+use crate::ResultExt;
 use crate::backend::{Backend, Continue, RenderCallback, Window};
 use crate::parser::Identifier;
-use crate::{
-    Aabb, AccelStructConfig, CommandSignatureArgument, DataType, Directive, DispatchContent,
-    DispatchType, Export, GeometryConfig, IdentifierIdx, IdentifierType, InputViewType,
-    PipelineKind, PipelineStateObjectType, PipelineType, ResultExt, RootSigConfig, RootSigConst,
-    RootSigEntry, RootSigTable, RootSigView, RootVal, ShaderReference, StateObjectConfig,
-    TlasBlasConfig, Transform, UnresolvedShaderTableRecord, ViewType, error,
-};
+use crate::*;
 
 #[cfg(feature = "enable_cpp")]
 #[cxx::bridge]
@@ -163,6 +158,88 @@ const _: () = assert!(
     StateObjectConfig::ADD_TO_SO.bits()
         == D3D12_STATE_OBJECT_FLAG_ALLOW_STATE_OBJECT_ADDITIONS.0 as u32
 );
+
+const _: () = assert!(
+    PipelineStateConfig::TOOL_DEBUG.bits() == D3D12_PIPELINE_STATE_FLAG_TOOL_DEBUG.0 as u32
+);
+const _: () = assert!(
+    PipelineStateConfig::DYNAMIC_DEPTH_BIAS.bits()
+        == D3D12_PIPELINE_STATE_FLAG_DYNAMIC_DEPTH_BIAS.0 as u32
+);
+const _: () = assert!(
+    PipelineStateConfig::DYNAMIC_INDEX_BUFFER_STRIP_CUT.bits()
+        == D3D12_PIPELINE_STATE_FLAG_DYNAMIC_INDEX_BUFFER_STRIP_CUT.0 as u32
+);
+
+const _: () = assert!(ColorWriteEnable::RED.bits() == D3D12_COLOR_WRITE_ENABLE_RED.0 as u8);
+const _: () = assert!(ColorWriteEnable::GREEN.bits() == D3D12_COLOR_WRITE_ENABLE_GREEN.0 as u8);
+const _: () = assert!(ColorWriteEnable::BLUE.bits() == D3D12_COLOR_WRITE_ENABLE_BLUE.0 as u8);
+const _: () = assert!(ColorWriteEnable::ALPHA.bits() == D3D12_COLOR_WRITE_ENABLE_ALPHA.0 as u8);
+const _: () = assert!(ColorWriteEnable::ALL.bits() == D3D12_COLOR_WRITE_ENABLE_ALL.0 as u8);
+
+const _: () = assert!(Blend::Zero as u32 == D3D12_BLEND_ZERO.0 as u32);
+const _: () = assert!(Blend::One as u32 == D3D12_BLEND_ONE.0 as u32);
+const _: () = assert!(Blend::SrcColor as u32 == D3D12_BLEND_SRC_COLOR.0 as u32);
+const _: () = assert!(Blend::InvSrcColor as u32 == D3D12_BLEND_INV_SRC_COLOR.0 as u32);
+const _: () = assert!(Blend::SrcAlpha as u32 == D3D12_BLEND_SRC_ALPHA.0 as u32);
+const _: () = assert!(Blend::InvSrcAlpha as u32 == D3D12_BLEND_INV_SRC_ALPHA.0 as u32);
+const _: () = assert!(Blend::DestAlpha as u32 == D3D12_BLEND_DEST_ALPHA.0 as u32);
+const _: () = assert!(Blend::InvDestAlpha as u32 == D3D12_BLEND_INV_DEST_ALPHA.0 as u32);
+const _: () = assert!(Blend::DestColor as u32 == D3D12_BLEND_DEST_COLOR.0 as u32);
+const _: () = assert!(Blend::InvDestColor as u32 == D3D12_BLEND_INV_DEST_COLOR.0 as u32);
+const _: () = assert!(Blend::SrcAlphaSat as u32 == D3D12_BLEND_SRC_ALPHA_SAT.0 as u32);
+const _: () = assert!(Blend::BlendFactor as u32 == D3D12_BLEND_BLEND_FACTOR.0 as u32);
+const _: () = assert!(Blend::InvBlendFactor as u32 == D3D12_BLEND_INV_BLEND_FACTOR.0 as u32);
+const _: () = assert!(Blend::Src1Color as u32 == D3D12_BLEND_SRC1_COLOR.0 as u32);
+const _: () = assert!(Blend::InvSrc1Color as u32 == D3D12_BLEND_INV_SRC1_COLOR.0 as u32);
+const _: () = assert!(Blend::Src1Alpha as u32 == D3D12_BLEND_SRC1_ALPHA.0 as u32);
+const _: () = assert!(Blend::InvSrc1Alpha as u32 == D3D12_BLEND_INV_SRC1_ALPHA.0 as u32);
+const _: () = assert!(Blend::AlphaFactor as u32 == D3D12_BLEND_ALPHA_FACTOR.0 as u32);
+const _: () = assert!(Blend::InvAlphaFactor as u32 == D3D12_BLEND_INV_ALPHA_FACTOR.0 as u32);
+
+const _: () = assert!(BlendOp::Add as u32 == D3D12_BLEND_OP_ADD.0 as u32);
+const _: () = assert!(BlendOp::Subtract as u32 == D3D12_BLEND_OP_SUBTRACT.0 as u32);
+const _: () = assert!(BlendOp::RevSubtract as u32 == D3D12_BLEND_OP_REV_SUBTRACT.0 as u32);
+const _: () = assert!(BlendOp::Min as u32 == D3D12_BLEND_OP_MIN.0 as u32);
+const _: () = assert!(BlendOp::Max as u32 == D3D12_BLEND_OP_MAX.0 as u32);
+
+const _: () = assert!(LogicOp::Clear as u32 == D3D12_LOGIC_OP_CLEAR.0 as u32);
+const _: () = assert!(LogicOp::Set as u32 == D3D12_LOGIC_OP_SET.0 as u32);
+const _: () = assert!(LogicOp::Copy as u32 == D3D12_LOGIC_OP_COPY.0 as u32);
+const _: () = assert!(LogicOp::CopyInverted as u32 == D3D12_LOGIC_OP_COPY_INVERTED.0 as u32);
+const _: () = assert!(LogicOp::Noop as u32 == D3D12_LOGIC_OP_NOOP.0 as u32);
+const _: () = assert!(LogicOp::Invert as u32 == D3D12_LOGIC_OP_INVERT.0 as u32);
+const _: () = assert!(LogicOp::And as u32 == D3D12_LOGIC_OP_AND.0 as u32);
+const _: () = assert!(LogicOp::Nand as u32 == D3D12_LOGIC_OP_NAND.0 as u32);
+const _: () = assert!(LogicOp::Or as u32 == D3D12_LOGIC_OP_OR.0 as u32);
+const _: () = assert!(LogicOp::Nor as u32 == D3D12_LOGIC_OP_NOR.0 as u32);
+const _: () = assert!(LogicOp::Xor as u32 == D3D12_LOGIC_OP_XOR.0 as u32);
+const _: () = assert!(LogicOp::Equiv as u32 == D3D12_LOGIC_OP_EQUIV.0 as u32);
+const _: () = assert!(LogicOp::AndReverse as u32 == D3D12_LOGIC_OP_AND_REVERSE.0 as u32);
+const _: () = assert!(LogicOp::AndInverted as u32 == D3D12_LOGIC_OP_AND_INVERTED.0 as u32);
+const _: () = assert!(LogicOp::OrReverse as u32 == D3D12_LOGIC_OP_OR_REVERSE.0 as u32);
+const _: () = assert!(LogicOp::OrInverted as u32 == D3D12_LOGIC_OP_OR_INVERTED.0 as u32);
+
+const _: () = assert!(StencilOp::Keep as u32 == D3D12_STENCIL_OP_KEEP.0 as u32);
+const _: () = assert!(StencilOp::Zero as u32 == D3D12_STENCIL_OP_ZERO.0 as u32);
+const _: () = assert!(StencilOp::Replace as u32 == D3D12_STENCIL_OP_REPLACE.0 as u32);
+const _: () = assert!(StencilOp::IncrSat as u32 == D3D12_STENCIL_OP_INCR_SAT.0 as u32);
+const _: () = assert!(StencilOp::DecrSat as u32 == D3D12_STENCIL_OP_DECR_SAT.0 as u32);
+const _: () = assert!(StencilOp::Invert as u32 == D3D12_STENCIL_OP_INVERT.0 as u32);
+const _: () = assert!(StencilOp::Incr as u32 == D3D12_STENCIL_OP_INCR.0 as u32);
+const _: () = assert!(StencilOp::Decr as u32 == D3D12_STENCIL_OP_DECR.0 as u32);
+
+const _: () = assert!(ComparisonFunc::None as u32 == D3D12_COMPARISON_FUNC_NONE.0 as u32);
+const _: () = assert!(ComparisonFunc::Never as u32 == D3D12_COMPARISON_FUNC_NEVER.0 as u32);
+const _: () = assert!(ComparisonFunc::Less as u32 == D3D12_COMPARISON_FUNC_LESS.0 as u32);
+const _: () = assert!(ComparisonFunc::Equal as u32 == D3D12_COMPARISON_FUNC_EQUAL.0 as u32);
+const _: () =
+    assert!(ComparisonFunc::LessEqual as u32 == D3D12_COMPARISON_FUNC_LESS_EQUAL.0 as u32);
+const _: () = assert!(ComparisonFunc::Greater as u32 == D3D12_COMPARISON_FUNC_GREATER.0 as u32);
+const _: () = assert!(ComparisonFunc::NotEqual as u32 == D3D12_COMPARISON_FUNC_NOT_EQUAL.0 as u32);
+const _: () =
+    assert!(ComparisonFunc::GreaterEqual as u32 == D3D12_COMPARISON_FUNC_GREATER_EQUAL.0 as u32);
+const _: () = assert!(ComparisonFunc::Always as u32 == D3D12_COMPARISON_FUNC_ALWAYS.0 as u32);
 
 // End assertion block
 
@@ -2014,7 +2091,13 @@ impl Backend for Dx12Backend {
         mesh_shader: IdentifierIdx, pixel_shader: Option<IdentifierIdx>,
         root_sig: Option<IdentifierIdx>, dir: &Directive,
     ) -> Result<()> {
-        let Directive::Pipeline { name, typ, .. } = dir else { unreachable!() };
+        let Directive::Pipeline { name, typ, blend, depth_stencil, config, .. } = dir else {
+            unreachable!()
+        };
+
+        let blend = blend.clone().unwrap_or_default();
+        let depth_stencil = depth_stencil.clone().unwrap_or_default();
+        let config = config.unwrap_or_default();
 
         unsafe {
             let ams = amplification_shader.map(|s| &self.objects[&s]);
@@ -2026,23 +2109,46 @@ impl Backend for Dx12Backend {
                 ManuallyDrop::new(None)
             };
 
-            let blend_desc = D3D12_RENDER_TARGET_BLEND_DESC {
-                SrcBlend: D3D12_BLEND_ONE,
-                DestBlend: D3D12_BLEND_ZERO,
-                BlendOp: D3D12_BLEND_OP_ADD,
-                SrcBlendAlpha: D3D12_BLEND_ONE,
-                DestBlendAlpha: D3D12_BLEND_ZERO,
-                BlendOpAlpha: D3D12_BLEND_OP_ADD,
-                LogicOp: D3D12_LOGIC_OP_NOOP,
-                RenderTargetWriteMask: D3D12_COLOR_WRITE_ENABLE_ALL.0 as u8,
-                ..Default::default()
+            let into_target_blend_desc = |desc: TargetBlendDesc| {
+                let mut res = D3D12_RENDER_TARGET_BLEND_DESC::default();
+                res.RenderTargetWriteMask = desc.render_target_write_mask.bits();
+                match desc.desc {
+                    TargetBlendMode::None => {}
+                    TargetBlendMode::Blend(blend) => {
+                        res.BlendEnable = true.into();
+                        res.SrcBlend = D3D12_BLEND(blend.src as i32);
+                        res.DestBlend = D3D12_BLEND(blend.dst as i32);
+                        res.BlendOp = D3D12_BLEND_OP(blend.op as i32);
+                        res.SrcBlendAlpha = D3D12_BLEND(blend.alpha_src as i32);
+                        res.DestBlendAlpha = D3D12_BLEND(blend.alpha_dst as i32);
+                        res.BlendOpAlpha = D3D12_BLEND_OP(blend.alpha_op as i32);
+                    }
+                    TargetBlendMode::Logic { op } => {
+                        res.LogicOpEnable = true.into();
+                        res.LogicOp = D3D12_LOGIC_OP(op as i32);
+                    }
+                }
+                res
+            };
+
+            let blend_desc = D3D12_BLEND_DESC {
+                AlphaToCoverageEnable: blend.alpha_to_coverage_enable.into(),
+                IndependentBlendEnable: matches!(
+                    blend.render_target,
+                    TargetBlendDescs::Independent(_)
+                )
+                .into(),
+                RenderTarget: match blend.render_target {
+                    TargetBlendDescs::All(d) => [into_target_blend_desc(d); _],
+                    TargetBlendDescs::Independent(ds) => ds.map(into_target_blend_desc),
+                },
             };
 
             let stencilop_desc = D3D12_DEPTH_STENCILOP_DESC {
-                StencilFailOp: D3D12_STENCIL_OP_KEEP,
-                StencilDepthFailOp: D3D12_STENCIL_OP_KEEP,
-                StencilPassOp: D3D12_STENCIL_OP_KEEP,
-                StencilFunc: D3D12_COMPARISON_FUNC_ALWAYS,
+                StencilFailOp: D3D12_STENCIL_OP(depth_stencil.fail_op as i32),
+                StencilDepthFailOp: D3D12_STENCIL_OP(depth_stencil.depth_fail_op as i32),
+                StencilPassOp: D3D12_STENCIL_OP(depth_stencil.pass_op as i32),
+                StencilFunc: D3D12_COMPARISON_FUNC(depth_stencil.func as i32),
             };
 
             // Same alignment as void*
@@ -2074,7 +2180,7 @@ impl Backend for Dx12Backend {
             let mut stream = Stream {
                 flags: Subobject {
                     typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_FLAGS,
-                    obj: D3D12_PIPELINE_STATE_FLAG_NONE,
+                    obj: D3D12_PIPELINE_STATE_FLAGS(config.bits() as i32),
                 },
                 node_mask: Subobject { typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_NODE_MASK, obj: 0 },
                 root_sig: Subobject {
@@ -2104,7 +2210,7 @@ impl Backend for Dx12Backend {
                 },
                 blend_desc: Subobject {
                     typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_BLEND,
-                    obj: D3D12_BLEND_DESC { RenderTarget: [blend_desc; _], ..Default::default() },
+                    obj: blend_desc,
                 },
                 depth_stencil_state: Subobject {
                     typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL1,
@@ -2140,7 +2246,8 @@ impl Backend for Dx12Backend {
                     obj: D3D12_RT_FORMAT_ARRAY {
                         RTFormats: [
                             // TODO
-                            self.window_buffer.as_ref().unwrap().back_buffer.GetDesc().Format,
+                            // self.window_buffer.as_ref().unwrap().back_buffer.GetDesc().Format,
+                            Default::default(),
                             Default::default(),
                             Default::default(),
                             Default::default(),
@@ -2632,7 +2739,7 @@ impl Backend for Dx12Backend {
                     pipe_root_sig = pipeline.root_sig;
 
                     if is_graphics {
-                        let win =
+                        /*let win =
                             self.window_buffer.as_ref().expect("Only supported with --window");
                         // TODO Assumes render target is window
                         let buffer_desc = win.back_buffer.GetDesc1();
@@ -2654,7 +2761,7 @@ impl Backend for Dx12Backend {
                         ));
                         cmds.OMSetRenderTargets(1, Some(&win.back_buffer_view), false, None);
                         // cmds.ClearRenderTargetView(win.back_buffer_view, &[0.0; 4], None);
-                        present_buffer = Some(win.back_buffer.clone());
+                        present_buffer = Some(win.back_buffer.clone());*/
                     }
                 }
                 DispatchContent::DispatchRays { .. } => {

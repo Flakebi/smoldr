@@ -20,7 +20,7 @@ use bitflags::bitflags;
 use clap::Parser;
 use half::f16;
 use index_vec::IndexVec;
-use miette::{IntoDiagnostic, NamedSource, Result, SourceCode, WrapErr};
+use miette::{IntoDiagnostic, NamedSource, Result, SourceCode};
 use num_traits::float::Float;
 use tracing::{debug, info, trace, warn};
 
@@ -241,7 +241,16 @@ bitflags! {
     struct PipelineStateConfig: u32 {
         const TOOL_DEBUG = 1;
         const DYNAMIC_DEPTH_BIAS = 4;
-        const DYNAMIC_INDEX_BUFFER_STRIP_CU = 8;
+        const DYNAMIC_INDEX_BUFFER_STRIP_CUT = 8;
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+    struct ColorWriteEnable: u8 {
+        const RED = 1;
+        const GREEN = 2;
+        const BLUE = 4;
+        const ALPHA = 8;
+        const ALL = 15;
     }
 }
 
@@ -337,6 +346,86 @@ enum ShaderType {
     Amplification,
     Mesh,
     Pixel,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+enum Blend {
+    Zero = 1,
+    One,
+    SrcColor,
+    InvSrcColor,
+    SrcAlpha,
+    InvSrcAlpha,
+    DestAlpha,
+    InvDestAlpha,
+    DestColor,
+    InvDestColor,
+    SrcAlphaSat,
+    BlendFactor = 14,
+    InvBlendFactor,
+    Src1Color,
+    InvSrc1Color,
+    Src1Alpha,
+    InvSrc1Alpha,
+    AlphaFactor,
+    InvAlphaFactor,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+enum BlendOp {
+    Add = 1,
+    Subtract,
+    RevSubtract,
+    Min,
+    Max,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+enum LogicOp {
+    Clear,
+    Set,
+    Copy,
+    CopyInverted,
+    #[default]
+    Noop,
+    Invert,
+    And,
+    Nand,
+    Or,
+    Nor,
+    Xor,
+    Equiv,
+    AndReverse,
+    AndInverted,
+    OrReverse,
+    OrInverted,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+enum StencilOp {
+    #[default]
+    Keep = 1,
+    Zero,
+    Replace,
+    IncrSat,
+    DecrSat,
+    Invert,
+    Incr,
+    Decr,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+enum ComparisonFunc {
+    None,
+    Never,
+    Less,
+    Equal,
+    LessEqual,
+    Greater,
+    NotEqual,
+    GreaterEqual,
+    #[default]
+    Always,
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -556,14 +645,50 @@ enum CommandSignatureArgument {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-struct Blend {
-    src,
-    dst,
-    op,
-    alpha_src,
-    alpha_dst,
-    alpha_op,
-    logic_op,
+struct TargetBlend {
+    op: BlendOp,
+    src: Blend,
+    dst: Blend,
+    alpha_op: BlendOp,
+    alpha_src: Blend,
+    alpha_dst: Blend,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+enum TargetBlendMode {
+    #[default]
+    None,
+    Blend(TargetBlend),
+    Logic {
+        op: LogicOp,
+    },
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+struct TargetBlendDesc {
+    desc: TargetBlendMode,
+    render_target_write_mask: ColorWriteEnable,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum TargetBlendDescs {
+    All(TargetBlendDesc),
+    /// Enables independent blends for different render targets
+    Independent([TargetBlendDesc; 8]),
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+struct BlendDesc {
+    alpha_to_coverage_enable: bool,
+    render_target: TargetBlendDescs,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+struct DepthStencil {
+    fail_op: StencilOp,
+    depth_fail_op: StencilOp,
+    pass_op: StencilOp,
+    func: ComparisonFunc,
 }
 
 /// A directive in a script file
@@ -625,10 +750,12 @@ enum Directive {
         /// Root signature
         root_sig: Option<Identifier>,
         /// Only for graphics pipelines
-        config: Option<PipelineStateConfig>,
+        blend: Option<BlendDesc>,
         /// Only for graphics pipelines
-        blend: Option<Blend>,
-        // TODO blend, depth_stencil, dsv, rasterizer, rtv, sample, view_instancing
+        depth_stencil: Option<DepthStencil>,
+        // TODO dsv, rasterizer, rtv, sample, view_instancing
+        /// Only for graphics pipelines
+        config: Option<PipelineStateConfig>,
     },
     PipelineStateObject {
         name: Identifier,
@@ -765,14 +892,37 @@ impl<T, E> ResultExt<T> for Result<T, E>
 where Result<T, E>: IntoDiagnostic<T, E>
 {
     fn context<D: fmt::Display + Send + Sync + 'static>(self, msg: D) -> Result<T, miette::Report> {
+        use miette::WrapErr;
         self.into_diagnostic().context(msg)
     }
 
     fn with_context<D: fmt::Display + Send + Sync + 'static, F: FnOnce() -> D>(
         self, f: F,
     ) -> Result<T, miette::Report> {
+        use miette::WrapErr;
         self.into_diagnostic().with_context(f)
     }
+}
+
+impl Default for ColorWriteEnable {
+    fn default() -> Self { Self::ALL }
+}
+
+impl Default for TargetBlend {
+    fn default() -> Self {
+        Self {
+            op: BlendOp::Add,
+            src: Blend::One,
+            dst: Blend::Zero,
+            alpha_op: BlendOp::Add,
+            alpha_src: Blend::One,
+            alpha_dst: Blend::Zero,
+        }
+    }
+}
+
+impl Default for TargetBlendDescs {
+    fn default() -> Self { Self::All(Default::default()) }
 }
 
 impl Fill {
@@ -1102,6 +1252,7 @@ impl UnresolvedValueContent {
     }
 
     fn resolve(&self, state: &State, backend: &dyn Backend) -> Result<ValueContent> {
+        use miette::WrapErr;
         match self {
             Self::Resolved(c) => Ok(c.clone()),
             Self::Raw { values } => {
@@ -1290,6 +1441,7 @@ impl State {
 
     /// Open and parse the file at `path`.
     fn parse_file(&mut self, path: &Path) -> Result<Vec<Directive>> {
+        use miette::WrapErr;
         let mut file_reader = BufReader::new(
             File::open(path)
                 .context(format!("Input file: {}", path.display()))
@@ -1467,7 +1619,7 @@ impl State {
 
                 backend.create_shader_table(id, pso, &root_val_ids, &shaders, dir)?;
             }
-            Directive::Pipeline { name, typ, shaders, root_sig } => {
+            Directive::Pipeline { name, typ, shaders, root_sig, .. } => {
                 let id = self.add_identifier(name.clone(), IdentifierType::Pipeline)?;
                 let shaders = shaders
                     .iter()
@@ -1812,6 +1964,7 @@ fn enable_terminal_colors() -> Result<()> {
 }
 
 fn main() -> Result<()> {
+    use miette::WrapErr;
     if std::env::var("RUST_LOG").is_err() {
         std::env::set_var("RUST_LOG", "info");
     }

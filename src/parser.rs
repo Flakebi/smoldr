@@ -1038,6 +1038,10 @@ fn pipeline(s: &mut Input) -> Result<Directive> {
             }),
         shaders: empty.value(mem::take(&mut shaders)),
         root_sig: empty.value(mem::take(&mut root_sig.0)),
+        // TODO
+        blend: empty.value(None),
+        depth_stencil: empty.value(None),
+        config: empty.value(None),
         _: ("END", line_end),
     }}
     .parse_next(s)
