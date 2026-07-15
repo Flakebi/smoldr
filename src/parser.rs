@@ -28,14 +28,7 @@ use winnow::token::{literal, none_of, one_of, rest, take, take_till, take_until,
 use winnow::{LocatingSlice, Stateful};
 
 use crate::error::ParserError;
-use crate::{
-    Aabb, Bind, CommandSignatureArgument, DataType, Dim3, Directive, DispatchType, DumpDataType,
-    DumpFormat, Export, Fill, HitGroup, InputViewType, LinkObject, PipelineStateObjectType,
-    PipelineType, ProceduralGeometry, RootSigConst, RootSigEntry, RootSigTable, RootSigView,
-    RootValView, ShaderReference, ShaderType, SourceFileIdx, TlasBlas, Transform, TriangleGeometry,
-    UnresolvedRootVal, UnresolvedRootValConst, UnresolvedShaderTableRecord, UnresolvedValue,
-    UnresolvedValueContent, UnresolvedValues, Value, ValueContent, Vertex, ViewType,
-};
+use crate::*;
 
 #[cfg(test)]
 mod tests;
@@ -44,15 +37,19 @@ mod tests;
 macro_rules! dispatch_no_move {
     (
         $scrutinee_parser:expr;
-        $( $arm_pat:pat $(if $arm_pred:expr)? => $arm_parser: expr ),+ $(,)?
+        $( $arm_pat:literal $(if $arm_pred:expr)? => $arm_parser:expr ),+
+        $( , _ => $default_arm_parser:expr )? $(,)?
     ) => {
         |i: &mut _|
         {
             let initial = $scrutinee_parser.parse_next(i)?;
             match initial {
                 $(
-                    $arm_pat $(if $arm_pred)? => $arm_parser.parse_next(i),
+                    $arm_pat $(if $arm_pred)? => cut_err($arm_parser).parse_next(i),
                 )*
+                $(
+                    _ => $default_arm_parser.parse_next(i),
+                )?
             }
         }
     }
@@ -62,15 +59,19 @@ macro_rules! dispatch_no_move {
 macro_rules! dispatch_id {
     (
         $id:ident;
-        $( $arm_pat:pat $(if $arm_pred:expr)? => $arm_parser: expr ),+ $(,)?
+        $( $arm_pat:literal $(if $arm_pred:expr)? => $arm_parser:expr ),+
+        $( , _ => $default_arm_parser:expr )? $(,)?
     ) => {
         |i: &mut _|
         {
             let $id = identifier.parse_next(i)?;
             match $id.content.as_str() {
                 $(
-                    $arm_pat $(if $arm_pred)? => $arm_parser.parse_next(i),
+                    $arm_pat $(if $arm_pred)? => cut_err($arm_parser).parse_next(i),
                 )*
+                $(
+                    _ => $default_arm_parser.parse_next(i),
+                )?
             }
         }
     }
@@ -466,6 +467,126 @@ fn view_type(s: &mut Input) -> Result<ViewType> {
     .parse_next(s)
 }
 
+fn blend(s: &mut Input) -> Result<Blend> {
+    dispatch_id! {id;
+        "ZERO" => empty.value(Blend::Zero),
+        "ONE" => empty.value(Blend::One),
+        "SRC_COLOR" => empty.value(Blend::SrcColor),
+        "INV_SRC_COLOR" => empty.value(Blend::InvSrcColor),
+        "SRC_ALPHA" => empty.value(Blend::SrcAlpha),
+        "INV_SRC_ALPHA" => empty.value(Blend::InvSrcAlpha),
+        "DEST_ALPHA" => empty.value(Blend::DestAlpha),
+        "INV_DEST_ALPHA" => empty.value(Blend::InvDestAlpha),
+        "DEST_COLOR" => empty.value(Blend::DestColor),
+        "INV_DEST_COLOR" => empty.value(Blend::InvDestColor),
+        "SRC_ALPHA_SAT" => empty.value(Blend::SrcAlphaSat),
+        "BLEND_FACTOR" => empty.value(Blend::BlendFactor),
+        "INV_BLEND_FACTOR" => empty.value(Blend::InvBlendFactor),
+        "SRC1_COLOR" => empty.value(Blend::Src1Color),
+        "INV_SRC1_COLOR" => empty.value(Blend::InvSrc1Color),
+        "SRC1_ALPHA" => empty.value(Blend::Src1Alpha),
+        "INV_SRC1_ALPHA" => empty.value(Blend::InvSrc1Alpha),
+        "ALPHA_FACTOR" => empty.value(Blend::AlphaFactor),
+        "INV_ALPHA_FACTOR" => empty.value(Blend::InvAlphaFactor),
+        _ => inv_word(id.span, "blend", &["ZERO", "ONE", "SRC_COLOR", "INV_SRC_COLOR", "SRC_ALPHA", "INV_SRC_ALPHA", "DEST_ALPHA", "INV_DEST_ALPHA", "DEST_COLOR", "INV_DEST_COLOR", "SRC_ALPHA_SAT", "BLEND_FACTOR", "INV_BLEND_FACTOR", "SRC1_COLOR", "INV_SRC1_COLOR", "SRC1_ALPHA", "INV_SRC1_ALPHA", "ALPHA_FACTOR", "INV_ALPHA_FACTOR"]),
+    }
+    .parse_next(s)
+}
+
+fn blend_op(s: &mut Input) -> Result<BlendOp> {
+    dispatch_id! {id;
+        "ADD" => empty.value(BlendOp::Add),
+        "SUBTRACT" => empty.value(BlendOp::Subtract),
+        "REV_SUBTRACT" => empty.value(BlendOp::RevSubtract),
+        "MIN" => empty.value(BlendOp::Min),
+        "MAX" => empty.value(BlendOp::Max),
+        _ => inv_word(id.span, "blend_op", &["ADD", "SUBTRACT", "REV_SUBTRACT", "MIN", "MAX"]),
+    }
+    .parse_next(s)
+}
+
+fn logic_op(s: &mut Input) -> Result<LogicOp> {
+    dispatch_id! {id;
+        "CLEAR" => empty.value(LogicOp::Clear),
+        "SET" => empty.value(LogicOp::Set),
+        "COPY" => empty.value(LogicOp::Copy),
+        "COPY_INVERTED" => empty.value(LogicOp::CopyInverted),
+        "NOOP" => empty.value(LogicOp::Noop),
+        "INVERT" => empty.value(LogicOp::Invert),
+        "AND" => empty.value(LogicOp::And),
+        "NAND" => empty.value(LogicOp::Nand),
+        "OR" => empty.value(LogicOp::Or),
+        "NOR" => empty.value(LogicOp::Nor),
+        "XOR" => empty.value(LogicOp::Xor),
+        "EQUIV" => empty.value(LogicOp::Equiv),
+        "AND_REVERSE" => empty.value(LogicOp::AndReverse),
+        "AND_INVERTED" => empty.value(LogicOp::AndInverted),
+        "OR_REVERSE" => empty.value(LogicOp::OrReverse),
+        "OR_INVERTED" => empty.value(LogicOp::OrInverted),
+        _ => inv_word(id.span, "logic_op", &["CLEAR", "SET", "COPY", "COPY_INVERTED", "NOOP", "INVERT", "AND", "NAND", "OR", "NOR", "XOR", "EQUIV", "AND_REVERSE", "AND_INVERTED", "OR_REVERSE", "OR_INVERTED"]),
+    }
+    .parse_next(s)
+}
+
+fn stencil_op(s: &mut Input) -> Result<StencilOp> {
+    dispatch_id! {id;
+        "KEEP" => empty.value(StencilOp::Keep),
+        "ZERO" => empty.value(StencilOp::Zero),
+        "REPLACE" => empty.value(StencilOp::Replace),
+        "INCR_SAT" => empty.value(StencilOp::IncrSat),
+        "DECR_SAT" => empty.value(StencilOp::DecrSat),
+        "INVERT" => empty.value(StencilOp::Invert),
+        "INCR" => empty.value(StencilOp::Incr),
+        "DECR" => empty.value(StencilOp::Decr),
+        _ => inv_word(id.span, "stencil_op", &["KEEP", "ZERO", "REPLACE", "INCR_SAT", "DECR_SAT", "INVERT", "INCR", "DECR"]),
+    }
+    .parse_next(s)
+}
+
+fn comparison_func(s: &mut Input) -> Result<ComparisonFunc> {
+    dispatch_id! {id;
+        "NONE" => empty.value(ComparisonFunc::None),
+        "NEVER" => empty.value(ComparisonFunc::Never),
+        "LESS" => empty.value(ComparisonFunc::Less),
+        "EQUAL" => empty.value(ComparisonFunc::Equal),
+        "LESS_EQUAL" => empty.value(ComparisonFunc::LessEqual),
+        "GREATER" => empty.value(ComparisonFunc::Greater),
+        "NOT_EQUAL" => empty.value(ComparisonFunc::NotEqual),
+        "GREATER_EQUAL" => empty.value(ComparisonFunc::GreaterEqual),
+        "ALWAYS" => empty.value(ComparisonFunc::Always),
+        _ => inv_word(id.span, "comparison_func", &["NONE", "NEVER", "LESS", "EQUAL", "LESS_EQUAL", "GREATER", "NOT_EQUAL", "GREATER_EQUAL", "ALWAYS"]),
+    }
+    .parse_next(s)
+}
+
+fn depth_write_mask(s: &mut Input) -> Result<DepthWriteMask> {
+    dispatch_id! {id;
+        "ZERO" => empty.value(DepthWriteMask::Zero),
+        "ALL" => empty.value(DepthWriteMask::All),
+        _ => inv_word(id.span, "depth_write_mask", &["ZERO", "ALL"]),
+    }
+    .parse_next(s)
+}
+
+fn fill_mode(s: &mut Input) -> Result<FillMode> {
+    dispatch_id! {id;
+        "WIREFRAME" => empty.value(FillMode::Wireframe),
+        "SOLID" => empty.value(FillMode::Solid),
+        _ => inv_word(id.span, "fill_mode", &["WIREFRAME", "SOLID"]),
+    }
+    .parse_next(s)
+}
+
+fn cull_mode(s: &mut Input) -> Result<CullMode> {
+    dispatch_id! {id;
+        "NONE" => empty.value(CullMode::None),
+        "FRONT" => empty.value(CullMode::Front),
+        "BACK" => empty.value(CullMode::Back),
+        _ => inv_word(id.span, "cull_mode", &["NONE", "FRONT", "BACK"]),
+    }
+    .parse_next(s)
+}
+
 /// Everything until `END` comes up on a line on its own.
 ///
 /// Also parses following line ends.
@@ -552,7 +673,7 @@ fn statement(s: &mut Input) -> Result<Directive> {
         "SOURCE" => source.map_err(inv_statement("SOURCE <name> code... END", id)),
         "TLAS" => tlas.map_err(inv_statement("TLAS <name> content... END", id)),
         "VIEW" => view.map_err(inv_statement("VIEW <name> <buffer_name> AS [UAV|SRV|RTAS SRV]", id)),
-        _ => cut_err(fail.map_err(|()| ErrMode::Backtrack(ParserError::UnknownStatement { span: id.span.clone() }))),
+        _ => fail.map_err(|()| ErrMode::Cut(ParserError::UnknownStatement { span: id.span.clone() })),
     }
     .parse_next(s)
 }
@@ -630,7 +751,7 @@ fn pso<'a>(typ: PipelineStateObjectType) -> impl Parser<'a, Directive> {
                 "COLLECTION" => pso_lib.map(|r| collections.push(r)).map_err(inv_statement("COLLECTION <obj> [EXPORTS <name>[=<exportToRename>] <....>]", id)),
                 "LIB" => pso_lib.map(|r| libs.push(r)).map_err(inv_statement("LIB <obj> [EXPORTS <name>[=<exportToRename>] <....>]", id)),
                 "HIT_GROUP" => pso_hit_group.map(|r| hit_groups.push(r)).map_err(inv_statement("HIT_GROUP <name> <anyhit> <closesthit> <intersection>", id)),
-                "CONFIG" => cut_err(flags(&mut config, id)),
+                "CONFIG" => flags(&mut config, id),
                 _ => fail,
             }),
             libs: empty.value(mem::take(&mut libs)),
@@ -707,7 +828,7 @@ fn blas_geometry_procedural(s: &mut Input) -> Result<ProceduralGeometry> {
 
     repeat::<_, _, (), _, _>(0.., dispatch_id! {id;
         "AABB" => aabb.map(|r| aabbs.push(r)).map_err(inv_statement("AABB <min_x> <min_y> <min_z> <max_x> <max_y> <max_z>", id)),
-        "CONFIG" => cut_err(flags(&mut config, id)),
+        "CONFIG" => flags(&mut config, id),
         _ => fail,
     })
     .parse_next(s)?;
@@ -727,7 +848,7 @@ fn blas_geometry_triangle(s: &mut Input) -> Result<TriangleGeometry> {
     repeat::<_, _, (), _, _>(0.., dispatch_id! {id;
         "VERTEX" => terminated(vertex, line_end).map(|r| vertices.push(r)).map_err(inv_statement("VERTEX <x> <y> <z>", id)),
         "TRANSFORM" => no_dup(&mut triangle_transform, id.clone(), transform).map_err(inv_statement("TRANSFORM content 3x4... END", id)),
-        "CONFIG" => cut_err(flags(&mut config, id)),
+        "CONFIG" => flags(&mut config, id),
         _ => fail,
     })
     .parse_next(s)?;
@@ -751,12 +872,12 @@ fn blas(s: &mut Input) -> Result<Directive> {
         name: identifier,
         _: line_end,
         _: repeat::<_, _, (), _, _>(0.., dispatch_id! {id;
-                "GEOMETRY" => cut_err(preceded(space, dispatch_no_move! {word;
-                    "PROCEDURAL" => cut_err(blas_geometry_procedural.map(|r| procedurals.push(r))),
-                    "TRIANGLE" => cut_err(blas_geometry_triangle.map(|r| triangles.push(r))),
+                "GEOMETRY" => preceded(space, dispatch_no_move! {word;
+                    "PROCEDURAL" => blas_geometry_procedural.map(|r| procedurals.push(r)),
+                    "TRIANGLE" => blas_geometry_triangle.map(|r| triangles.push(r)),
                     _ => fail,
-                })),
-                "CONFIG" => cut_err(flags(&mut config, id)),
+                }),
+                "CONFIG" => flags(&mut config, id),
                 _ => fail,
             }),
         procedurals: empty.value(mem::take(&mut procedurals)),
@@ -786,7 +907,7 @@ fn tlas_blas(s: &mut Input) -> Result<TlasBlas> {
                     "MASK" => no_dup(&mut mask, id.clone(), delimited(space, uint, line_end)).map_err(inv_statement("MASK <num>", id)),
                     "HIT_GROUP_INDEX_CONTRIBUTION" => no_dup(&mut index_contrib, id.clone(), delimited(space, uint, line_end)).map_err(inv_statement("HIT_GROUP_INDEX_CONTRIBUTION <num>", id)),
                     "TRANSFORM" => no_dup(&mut blas_transform, id.clone(), transform).map_err(inv_statement("TRANSFORM content 3x4... END", id)),
-                    "CONFIG" => cut_err(flags(&mut config, id)),
+                    "CONFIG" => flags(&mut config, id),
                     _ => fail,
                 }),
                 ("END", line_end),
@@ -811,7 +932,7 @@ fn tlas(s: &mut Input) -> Result<Directive> {
         _: line_end,
         _: repeat::<_, _, (), _, _>(0.., dispatch_id! {id;
                 "BLAS" => tlas_blas.map(|r| blas.push(r)).map_err(inv_statement("BLAS <name> [-]", id)),
-                "CONFIG" => cut_err(flags(&mut config, id.clone())),
+                "CONFIG" => flags(&mut config, id.clone()),
                 _ => fail,
             }),
         blas: empty.value(mem::take(&mut blas)),
@@ -993,7 +1114,7 @@ fn root_sig(s: &mut Input) -> Result<Directive> {
                     .map_err(inv_statement("UAV REGISTER <num> SPACE <space>", id)),
                 "ROOT_CONST" => root_sig_const.map(|r| entries.push(RootSigEntry::Const(r)))
                     .map_err(inv_statement("ROOT_CONST COUNT <num> REGISTER <num> SPACE <space>", id)),
-                "CONFIG" => cut_err(flags(&mut config, id)),
+                "CONFIG" => flags(&mut config, id),
                 _ => fail,
             }),
         entries: empty.value(mem::take(&mut entries)),
@@ -1014,9 +1135,241 @@ fn root_sig_dxil(s: &mut Input) -> Result<Directive> {
     .parse_next(s)
 }
 
+fn target_blend(s: &mut Input) -> Result<TargetBlend> {
+    let mut res = TargetBlend::default();
+    line_end.parse_next(s)?;
+
+    repeat::<_, _, (), _, _>(0.., dispatch_id! {id;
+        "OP" => delimited(space, blend_op, line_end).map(|r| res.op = r),
+        "SRC" => delimited(space, blend, line_end).map(|r| res.src = r),
+        "DST" => delimited(space, blend, line_end).map(|r| res.dst = r),
+        "ALPHA_OP" => delimited(space, blend_op, line_end).map(|r| res.alpha_op = r),
+        "ALPHA_SRC" => delimited(space, blend, line_end).map(|r| res.alpha_src = r),
+        "ALPHA_DST" => delimited(space, blend, line_end).map(|r| res.alpha_dst = r),
+        _ => fail,
+    })
+    .parse_next(s)?;
+    ("END", line_end).parse_next(s)?;
+
+    Ok(res)
+}
+
+fn blend_desc(s: &mut Input) -> Result<BlendDesc> {
+    let mut alpha_to_coverage_enable = Default::default();
+    let mut render_target = Default::default();
+
+    seq! {BlendDesc {
+        _: line_end,
+        _: repeat::<_, _, (), _, _>(0.., dispatch_id! {id;
+                "ALPHA_TO_COVERAGE_ENABLE" => line_end.map(|_| alpha_to_coverage_enable = true),
+                "RENDER_TARGET" => |s: &mut Input| {
+                    let i = opt(preceded(space, uint::<usize>)).with_span().parse_next(s)?;
+                    line_end.parse_next(s)?;
+                    if let Some(index) = i.0 {
+                        if index >= 8 {
+                            return Err(ErrMode::Backtrack(ParserError::ParseRenderTargetIndex {
+                                span: i.1,
+                                identifier: id.clone(),
+                            }));
+                        }
+                    }
+
+                    // Parse render target blend desc
+                    let mut blend = Default::default();
+                    let mut logic = Default::default();
+                    let mut write_mask = Default::default();
+                    repeat::<_, _, (), _, _>(0.., dispatch_id! {id;
+                        "WRITE_MASK" => flags(&mut write_mask, id.clone()),
+                        "BLEND" => no_dup(&mut blend, id.clone(), target_blend).map_err(inv_statement("BLEND content... END", id)),
+                        "LOGIC" => no_dup(&mut logic, id.clone(), delimited(space, logic_op, line_end)),
+                        _ => fail,
+                    }).parse_next(s)?;
+
+                    ("END", line_end).parse_next(s)?;
+
+                    if blend.0.is_some() && logic.0.is_some() {
+                        return Err(ErrMode::Backtrack(ParserError::BlendAndLogic {
+                            blend_span: blend.1.unwrap().span,
+                            logic_span: logic.1.unwrap().span,
+                            identifier: id.clone(),
+                        }));
+                    }
+
+                    let target = TargetBlendDesc {
+                        desc: if let Some(blend) = blend.0 {
+                            TargetBlendMode::Blend(blend)
+                        } else if let Some(op) = logic.0 {
+                            TargetBlendMode::Logic { op }
+                        } else {
+                            TargetBlendMode::None
+                        },
+                        write_mask: write_mask.0.unwrap_or_default(),
+                    };
+
+                    if matches!(render_target, Some(TargetBlendDescs::All(_))) || (i.0.is_none() && render_target.is_some()) {
+                        return Err(ErrMode::Backtrack(ParserError::DuplicateRenderTarget {
+                            identifier: id.clone(),
+                        }));
+                    }
+
+                    if let Some(i) = i.0 {
+                        if render_target.is_none() {
+                            render_target = Some(TargetBlendDescs::Independent(Default::default()));
+                        }
+                        let Some(TargetBlendDescs::Independent(descs)) = &mut render_target else {
+                            panic!("Unexpected target blend desc state")
+                        };
+                        descs[i] = target;
+                    } else {
+                        render_target = Some(TargetBlendDescs::All(target));
+                    }
+
+                    Ok(())
+                },
+                _ => fail,
+            }),
+        render_target: empty.value(render_target.take().unwrap_or_default()),
+        alpha_to_coverage_enable: empty.value(alpha_to_coverage_enable),
+        _: ("END", line_end),
+    }}
+    .parse_next(s)
+}
+
+fn depth_stencil_op_desc(s: &mut Input) -> Result<DepthStencilOpDesc> {
+    let mut fail_op = Default::default();
+    let mut depth_fail_op = Default::default();
+    let mut pass_op = Default::default();
+    let mut func = Default::default();
+
+    seq! {DepthStencilOpDesc {
+        _: line_end,
+        _: repeat::<_, _, (), _, _>(0.., dispatch_id! {id;
+                "FAIL_OP" => no_dup(&mut fail_op, id.clone(), delimited(space, stencil_op, line_end)),
+                "DEPTH_FAIL_OP" => no_dup(&mut depth_fail_op, id.clone(), delimited(space, stencil_op, line_end)),
+                "PASS_OP" => no_dup(&mut pass_op, id.clone(), delimited(space, stencil_op, line_end)),
+                "FUNC" => no_dup(&mut func, id.clone(), delimited(space, comparison_func, line_end)),
+                _ => fail,
+            }),
+        fail_op: empty.value(fail_op.0.unwrap_or_default()),
+        depth_fail_op: empty.value(depth_fail_op.0.unwrap_or_default()),
+        pass_op: empty.value(pass_op.0.unwrap_or_default()),
+        func: empty.value(func.0.unwrap_or_default()),
+        _: ("END", line_end),
+    }}
+    .parse_next(s)
+}
+
+fn depth_stencil(s: &mut Input) -> Result<DepthStencil> {
+    let mut depth_enable = Default::default();
+    let mut depth_write_mask_val = Default::default();
+    let mut depth_func = Default::default();
+    let mut stencil_enable = Default::default();
+    let mut stencil_read_mask = Default::default();
+    let mut stencil_write_mask = Default::default();
+    let mut depth_bounds_test_enable = Default::default();
+    let mut front_face = Default::default();
+    let mut back_face = Default::default();
+
+    seq! {DepthStencil {
+        _: line_end,
+        _: repeat::<_, _, (), _, _>(0.., dispatch_id! {id;
+                "DEPTH_ENABLE" => line_end.map(|_| depth_enable = true),
+                "DEPTH_WRITE_MASK" => no_dup(&mut depth_write_mask_val, id.clone(), delimited(space, depth_write_mask, line_end)),
+                "DEPTH_FUNC" => no_dup(&mut depth_func, id.clone(), delimited(space, comparison_func, line_end)),
+                "STENCIL_ENABLE" => line_end.map(|_| stencil_enable = true),
+                "STENCIL_READ_MASK" => no_dup(&mut stencil_read_mask, id.clone(), delimited(space, uint, line_end)),
+                "STENCIL_WRITE_MASK" => no_dup(&mut stencil_write_mask, id.clone(), delimited(space, uint, line_end)),
+                "DEPTH_BOUNDS_TEST_ENABLE" => line_end.map(|_| depth_bounds_test_enable = true),
+                "FRONT_FACE" => no_dup(&mut front_face, id.clone(), depth_stencil_op_desc),
+                "BACK_FACE" => no_dup(&mut back_face, id.clone(), depth_stencil_op_desc),
+                _ => fail,
+            }),
+        depth_enable: empty.value(depth_enable),
+        depth_write_mask: empty.value(depth_write_mask_val.0.unwrap_or_default()),
+        depth_func: empty.value(depth_func.0.unwrap_or_default()),
+        stencil_enable: empty.value(stencil_enable),
+        stencil_read_mask: empty.value(stencil_read_mask.0.unwrap_or_default()),
+        stencil_write_mask: empty.value(stencil_write_mask.0.unwrap_or_default()),
+        depth_bounds_test_enable: empty.value(depth_bounds_test_enable),
+        front_face: empty.value(front_face.0.take().unwrap_or_default()),
+        back_face: empty.value(back_face.0.take().unwrap_or_default()),
+        _: ("END", line_end),
+    }}
+    .parse_next(s)
+}
+
+fn rasterizer(s: &mut Input) -> Result<RasterizerState> {
+    let mut fill_mode_val = Default::default();
+    let mut cull_mode_val = Default::default();
+    let mut front_counter_clockwise = Default::default();
+    let mut depth_bias = Default::default();
+    let mut depth_bias_clamp = Default::default();
+    let mut slope_scaled_depth_bias = Default::default();
+    let mut depth_clip_enable = Default::default();
+    let mut multisample_enable = Default::default();
+    let mut antialiased_line_enable = Default::default();
+    let mut forced_sample_count = Default::default();
+    let mut conservative_raster = Default::default();
+
+    seq! {RasterizerState {
+        _: line_end,
+        _: repeat::<_, _, (), _, _>(0.., dispatch_id! {id;
+                "FILL_MODE" => no_dup(&mut fill_mode_val, id.clone(), delimited(space, fill_mode, line_end)),
+                "CULL_MODE" => no_dup(&mut cull_mode_val, id.clone(), delimited(space, cull_mode, line_end)),
+                "FRONT_COUNTER_CLOCKWISE" => line_end.map(|_| front_counter_clockwise = true),
+                "DEPTH_BIAS" => no_dup(&mut depth_bias, id.clone(), delimited(space, number, line_end)),
+                "DEPTH_BIAS_CLAMP" => no_dup(&mut depth_bias_clamp, id.clone(), delimited(space, number, line_end)),
+                "SLOPE_SCALED_DEPTH_BIAS" => no_dup(&mut slope_scaled_depth_bias, id.clone(), delimited(space, number, line_end)),
+                "DEPTH_CLIP_ENABLE" => line_end.map(|_| depth_clip_enable = true),
+                "MULTISAMPLE_ENABLE" => line_end.map(|_| multisample_enable = true),
+                "ANTIALIASED_LINE_ENABLE" => line_end.map(|_| antialiased_line_enable = true),
+                "FORCED_SAMPLE_COUNT" => no_dup(&mut forced_sample_count, id.clone(), delimited(space, uint, line_end)),
+                "CONSERVATIVE_RASTER" => line_end.map(|_| conservative_raster = true),
+                _ => fail,
+            }),
+        fill_mode: empty.value(fill_mode_val.0.unwrap_or_default()),
+        cull_mode: empty.value(cull_mode_val.0.unwrap_or_default()),
+        front_counter_clockwise: empty.value(front_counter_clockwise),
+        depth_bias: empty.value(depth_bias.0.unwrap_or_default()),
+        depth_bias_clamp: empty.value(depth_bias_clamp.0.unwrap_or_default()),
+        slope_scaled_depth_bias: empty.value(slope_scaled_depth_bias.0.unwrap_or_default()),
+        depth_clip_enable: empty.value(depth_clip_enable),
+        multisample_enable: empty.value(multisample_enable),
+        antialiased_line_enable: empty.value(antialiased_line_enable),
+        forced_sample_count: empty.value(forced_sample_count.0.take().unwrap_or_default()),
+        conservative_raster: empty.value(conservative_raster),
+        _: ("END", line_end),
+    }}
+    .parse_next(s)
+}
+
+fn view_instancing_location(s: &mut Input) -> Result<ViewInstancingLocation> {
+    let mut viewport_array_index = Default::default();
+    let mut render_target_array_index = Default::default();
+
+    seq! {ViewInstancingLocation {
+        _: line_end,
+        _: repeat::<_, _, (), _, _>(0.., dispatch_id! {id;
+                "VIEWPORT_ARRAY_INDEX" => no_dup(&mut viewport_array_index, id.clone(), delimited(space, uint, line_end)),
+                "RENDER_TARGET_ARRAY_INDEX" => no_dup(&mut render_target_array_index, id.clone(), delimited(space, uint, line_end)),
+                _ => fail,
+            }),
+        viewport_array_index: empty.value(viewport_array_index.0.unwrap_or_default()),
+        render_target_array_index: empty.value(render_target_array_index.0.unwrap_or_default()),
+        _: ("END", line_end),
+    }}
+    .parse_next(s)
+}
+
 fn pipeline(s: &mut Input) -> Result<Directive> {
     let mut shaders = Vec::new();
     let mut root_sig = Default::default();
+    let mut blend = Default::default();
+    let mut depth_stencil_val = Default::default();
+    let mut rasterizer_state = Default::default();
+    let mut view_instancing = Vec::new();
+    let mut view_instancing_config = Default::default();
+    let mut config = Default::default();
 
     seq! {Directive::Pipeline {
         _: space,
@@ -1034,17 +1387,22 @@ fn pipeline(s: &mut Input) -> Result<Directive> {
                 "MESH_SHADER" => delimited(space, identifier, line_end).map(|r| shaders.push((r, ShaderType::Mesh))).map_err(inv_statement("MESH_SHADER <name>", id)),
                 "PIXEL_SHADER" => delimited(space, identifier, line_end).map(|r| shaders.push((r, ShaderType::Pixel))).map_err(inv_statement("PIXEL_SHADER <name>", id)),
                 "ROOT" => no_dup(&mut root_sig, id.clone(), delimited(space, identifier, line_end)).map_err(inv_statement("ROOT <root_sig>", id)),
+                "BLEND" => no_dup(&mut blend, id.clone(), blend_desc).map_err(inv_statement("BLEND content... END", id)),
+                "DEPTH_STENCIL" => no_dup(&mut depth_stencil_val, id.clone(), depth_stencil).map_err(inv_statement("DEPTH_STENCIL content... END", id)),
+                "RASTERIZER" => no_dup(&mut rasterizer_state, id.clone(), rasterizer).map_err(inv_statement("RASTERIZER content... END", id)),
+                "VIEW_INSTANCING" => view_instancing_location.map(|r| view_instancing.push(r)).map_err(inv_statement("VIEW_INSTANCING content... END", id)),
+                "VIEW_INSTANCING_CONFIG" => flags(&mut view_instancing_config, id),
+                "CONFIG" => flags(&mut config, id),
                 _ => fail,
             }),
         shaders: empty.value(mem::take(&mut shaders)),
         root_sig: empty.value(mem::take(&mut root_sig.0)),
-        // TODO
-        blend: empty.value(None),
-        depth_stencil: empty.value(None),
-        rasterizer_state: empty.value(None),
-        view_instancing: empty.value(Vec::new()),
-        view_instancing_config: empty.value(None),
-        config: empty.value(None),
+        blend: empty.value(blend.0.take()),
+        depth_stencil: empty.value(depth_stencil_val.0.take()),
+        rasterizer_state: empty.value(rasterizer_state.0.take()),
+        view_instancing: empty.value(mem::take(&mut view_instancing)),
+        view_instancing_config: empty.value(view_instancing_config.0),
+        config: empty.value(config.0),
         _: ("END", line_end),
     }}
     .parse_next(s)
@@ -1082,11 +1440,11 @@ fn record_content<'a, 'b, 'c>(
             i_num - 1
         };
         repeat(0.., dispatch_id! {id;
-            "TABLE" => cut_err(delimited(space, identifier, line_end))
+            "TABLE" => delimited(space, identifier, line_end)
                 .map(|r| root_val.binds.push(Bind { index: i(), view: r })),
-            "GPUVA" => cut_err(delimited(space, identifier, line_end))
+            "GPUVA" => delimited(space, identifier, line_end)
                 .map(|r| root_val.views.push(RootValView { index: i(), typ: None, buffer: r })),
-            "SHADERID" => cut_err(delimited(space, no_dup(shader, id, identifier.map(ShaderReference::ShaderId)), line_end)),
+            "SHADERID" => delimited(space, no_dup(shader, id, identifier.map(ShaderReference::ShaderId)), line_end),
             _ => fail,
         })
         .map(|()| ())

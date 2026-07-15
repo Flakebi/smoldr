@@ -209,12 +209,13 @@
 
           # Install dx12
           PATH="${pkgs.zstd}/bin:$PATH" ${pkgs.gnutar}/bin/tar xf ${vkd3d-proton}
-          PATH="${pkgs.wineWowPackages.stable}/bin:$PATH" ${pkgs.runtimeShell} vkd3d-proton-${vkd3d-protonVersion}/setup_vkd3d_proton.sh install
+          export wine="${pkgs.wineWow64Packages.stable}/bin/wine"
+          PATH="${pkgs.wineWow64Packages.stable}/bin:$PATH" ${pkgs.runtimeShell} vkd3d-proton-${vkd3d-protonVersion}/setup_vkd3d_proton.sh install
 
           # Shutdown wine
-          ${pkgs.wineWowPackages.stable}/bin/wineboot -s
+          ${pkgs.wineWow64Packages.stable}/bin/wineboot -s
           # Wait until finished
-          ${pkgs.wineWowPackages.stable}/bin/wineserver -w
+          ${pkgs.wineWow64Packages.stable}/bin/wineserver -w
         '';
 
         app-win-drv = pkgs.writeShellScriptBin "smoldr" ''

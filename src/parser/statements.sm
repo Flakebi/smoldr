@@ -547,6 +547,12 @@ END
                 span: 53..60,
             },
         ),
+        blend: None,
+        depth_stencil: None,
+        rasterizer_state: None,
+        view_instancing: [],
+        view_instancing_config: None,
+        config: None,
     },
 ]
 
@@ -2126,10 +2132,77 @@ MESH pipeline
 ================================================================================
 
 PIPELINE meshpipe MESH
-  AMPLIFICATION_SHADER meshobj
-  MESH_SHADER meshobj
-  PIXEL_SHADER psobj
-  ROOT   default
+  AMPLIFICATION_SHADER amp_obj
+  MESH_SHADER mesh_obj
+  PIXEL_SHADER ps_obj
+  ROOT default
+  BLEND
+    ALPHA_TO_COVERAGE_ENABLE
+    RENDER_TARGET 0
+      WRITE_MASK red green blue alpha all
+      BLEND
+        OP SUBTRACT
+        SRC ONE
+        DST ZERO
+        ALPHA_OP ADD
+        ALPHA_SRC SRC_COLOR
+        ALPHA_DST DEST_COLOR
+      END
+    END
+    RENDER_TARGET 7
+      WRITE_MASK green
+      LOGIC COPY
+    END
+  END
+
+  DEPTH_STENCIL
+    DEPTH_ENABLE
+    DEPTH_WRITE_MASK ZERO
+    DEPTH_FUNC LESS_EQUAL
+
+    STENCIL_ENABLE
+    STENCIL_READ_MASK 0xff
+    STENCIL_WRITE_MASK 1
+    DEPTH_BOUNDS_TEST_ENABLE
+
+    FRONT_FACE
+      FAIL_OP INCR_SAT
+      DEPTH_FAIL_OP INCR_SAT
+      PASS_OP INCR_SAT
+      FUNC ALWAYS
+    END
+    BACK_FACE
+      FAIL_OP INCR_SAT
+      DEPTH_FAIL_OP INCR_SAT
+      PASS_OP INCR_SAT
+      FUNC NEVER
+    END
+  END
+
+  RASTERIZER
+    FILL_MODE WIREFRAME
+    CULL_MODE NONE
+    FRONT_COUNTER_CLOCKWISE
+    DEPTH_BIAS 1
+    DEPTH_BIAS_CLAMP 1.5
+    SLOPE_SCALED_DEPTH_BIAS 0.3
+    DEPTH_CLIP_ENABLE
+    MULTISAMPLE_ENABLE
+    ANTIALIASED_LINE_ENABLE
+    FORCED_SAMPLE_COUNT 3
+    CONSERVATIVE_RASTER
+  END
+
+  VIEW_INSTANCING
+    VIEWPORT_ARRAY_INDEX 1
+    RENDER_TARGET_ARRAY_INDEX 2
+  END
+  VIEW_INSTANCING
+    VIEWPORT_ARRAY_INDEX 3
+    RENDER_TARGET_ARRAY_INDEX 4
+  END
+  VIEW_INSTANCING_CONFIG enable_view_instance_masking
+  CONFIG tool_debug dynamic_depth_bias dynamic_index_buffer_strip_cut
 END
 
 --------------------------------------------------------------------------------
@@ -2145,7 +2218,7 @@ END
         shaders: [
             (
                 SpanObj {
-                    content: "meshobj",
+                    content: "amp_obj",
                     source_file: 0,
                     span: 46..53,
                 },
@@ -2153,17 +2226,17 @@ END
             ),
             (
                 SpanObj {
-                    content: "meshobj",
+                    content: "mesh_obj",
                     source_file: 0,
-                    span: 68..75,
+                    span: 68..76,
                 },
                 Mesh,
             ),
             (
                 SpanObj {
-                    content: "psobj",
+                    content: "ps_obj",
                     source_file: 0,
-                    span: 91..96,
+                    span: 92..98,
                 },
                 Pixel,
             ),
@@ -2174,6 +2247,132 @@ END
                 source_file: 0,
                 span: 106..113,
             },
+        ),
+        blend: Some(
+            BlendDesc {
+                alpha_to_coverage_enable: true,
+                render_target: Independent(
+                    [
+                        TargetBlendDesc {
+                            desc: Blend(
+                                TargetBlend {
+                                    op: Subtract,
+                                    src: One,
+                                    dst: Zero,
+                                    alpha_op: Add,
+                                    alpha_src: SrcColor,
+                                    alpha_dst: DestColor,
+                                },
+                            ),
+                            write_mask: ColorWriteEnable(
+                                RED | GREEN | BLUE | ALPHA,
+                            ),
+                        },
+                        TargetBlendDesc {
+                            desc: None,
+                            write_mask: ColorWriteEnable(
+                                RED | GREEN | BLUE | ALPHA,
+                            ),
+                        },
+                        TargetBlendDesc {
+                            desc: None,
+                            write_mask: ColorWriteEnable(
+                                RED | GREEN | BLUE | ALPHA,
+                            ),
+                        },
+                        TargetBlendDesc {
+                            desc: None,
+                            write_mask: ColorWriteEnable(
+                                RED | GREEN | BLUE | ALPHA,
+                            ),
+                        },
+                        TargetBlendDesc {
+                            desc: None,
+                            write_mask: ColorWriteEnable(
+                                RED | GREEN | BLUE | ALPHA,
+                            ),
+                        },
+                        TargetBlendDesc {
+                            desc: None,
+                            write_mask: ColorWriteEnable(
+                                RED | GREEN | BLUE | ALPHA,
+                            ),
+                        },
+                        TargetBlendDesc {
+                            desc: None,
+                            write_mask: ColorWriteEnable(
+                                RED | GREEN | BLUE | ALPHA,
+                            ),
+                        },
+                        TargetBlendDesc {
+                            desc: Logic {
+                                op: Copy,
+                            },
+                            write_mask: ColorWriteEnable(
+                                GREEN,
+                            ),
+                        },
+                    ],
+                ),
+            },
+        ),
+        depth_stencil: Some(
+            DepthStencil {
+                depth_enable: true,
+                depth_write_mask: Zero,
+                depth_func: LessEqual,
+                stencil_enable: true,
+                stencil_read_mask: 255,
+                stencil_write_mask: 1,
+                front_face: DepthStencilOpDesc {
+                    fail_op: IncrSat,
+                    depth_fail_op: IncrSat,
+                    pass_op: IncrSat,
+                    func: Always,
+                },
+                back_face: DepthStencilOpDesc {
+                    fail_op: IncrSat,
+                    depth_fail_op: IncrSat,
+                    pass_op: IncrSat,
+                    func: Never,
+                },
+                depth_bounds_test_enable: true,
+            },
+        ),
+        rasterizer_state: Some(
+            RasterizerState {
+                fill_mode: Wireframe,
+                cull_mode: None,
+                front_counter_clockwise: true,
+                depth_bias: 1,
+                depth_bias_clamp: 1.5,
+                slope_scaled_depth_bias: 0.3,
+                depth_clip_enable: true,
+                multisample_enable: true,
+                antialiased_line_enable: true,
+                forced_sample_count: 3,
+                conservative_raster: true,
+            },
+        ),
+        view_instancing: [
+            ViewInstancingLocation {
+                viewport_array_index: 1,
+                render_target_array_index: 2,
+            },
+            ViewInstancingLocation {
+                viewport_array_index: 3,
+                render_target_array_index: 4,
+            },
+        ],
+        view_instancing_config: Some(
+            ViewInstancingConfig(
+                ENABLE_VIEW_INSTANCE_MASKING,
+            ),
+        ),
+        config: Some(
+            PipelineStateConfig(
+                TOOL_DEBUG | DYNAMIC_DEPTH_BIAS | DYNAMIC_INDEX_BUFFER_STRIP_CUT,
+            ),
         ),
     },
 ]

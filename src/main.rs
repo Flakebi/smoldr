@@ -367,6 +367,7 @@ enum Blend {
     DestColor,
     InvDestColor,
     SrcAlphaSat,
+    #[allow(clippy::enum_variant_names)]
     BlendFactor = 14,
     InvBlendFactor,
     Src1Color,

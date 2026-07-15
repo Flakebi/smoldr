@@ -423,25 +423,171 @@ Traditional pipelines are compute and graphics pipelines that do not use the pip
 
 ```
 PIPELINE <pipeline_identifier> <type>
+  # Specify a compute shader
   ATTACH <object_identifier>
-  ROOT   <root_identifier>
+
+  # Specify graphics shaders
+  AMPLIFICATION_SHADER <object_identifier>
+  MESH_SHADER <object_identifier>
+  PIXEL_SHADER <object_identifier>
+
+  ROOT <root_identifier>
+  CONFIG [tool_debug] [dynamic_depth_bias] [dynamic_index_buffer_strip_cut]
+  <pipeline_properties>
 END
 ```
 
 Create a pre-PSO pipeline.
 
 * `pipeline_identifier` a string that can be used in later commands to reference the created pipeline
-* `type` the type of pipeline. Currently only `COMPUTE` is supported
+* `type` the type of pipeline. `COMPUTE` or `MESH` is supported
 * `object_identifier` name of a previously created DXIL object containing the compute shader to implement the pipeline
 * `root_identifier` name of a previously defined root signature to specify the binding for the pipeline
+* `pipeline_properties` is a sequence of lines (documented below) that allow changing properties of the pipeline.
 * `END` on it's own line indicates the end of the pipeline specification
 
-Example
+###### Pipeline Properties
+
+###### BLEND
 
 ```
-PIPELINE pipeline COMPUTE
+BLEND
+  ALPHA_TO_COVERAGE_ENABLE
+  RENDER_TARGET [<i>]
+    WRITE_MASK [red] [green] [blue] [alpha] [all]
+    BLEND
+      OP <blend_op>
+      SRC <blend>
+      DST <blend>
+      ALPHA_OP <blend_op>
+      ALPHA_SRC <blend>
+      ALPHA_DST <blend>
+    END
+    LOGIC <logic_op>
+  END
+END
+```
+
+Specify the blend mode for a graphics pipeline.
+Defaults to blending and logic being disabled, omitting values leaves them at their default.
+At max one of `BLEND` or `LOGIC` can be specified.
+
+* `WRITE_MASK` defaults to `ALL`
+* `i` is the render target index to configure between 0 and 7. Omitting sets the same config to all render targets
+* `blend_op` is one of `ADD`, `SUBTRACT`, `REV_SUBTRACT`, `MIN` or `MAX`, defaulting to `ADD`
+* `blend` is one of the values for [`D3D12_BLEND`](https://learn.microsoft.com/en-us/windows/win32/api/d3d12/ne-d3d12-d3d12_blend) like `ZERO`, `ONE`, `SRC_COLOR`, etc., defaulting to `ONE` for the source and `ZERO` for the destination
+* `logic_op` is one of the values for [`D3D12_LOGIC_OP`](https://learn.microsoft.com/en-us/windows/win32/api/d3d12/ne-d3d12-d3d12_logic_op) like `CLEAR`, `COPY`, `COPY_INVERTED`, etc.
+
+###### DEPTH_STENCIL
+
+```
+DEPTH_STENCIL
+  DEPTH_ENABLE
+  DEPTH_WRITE_MASK <depth_write_mask>
+  DEPTH_FUNC <comparison_func>
+
+  STENCIL_ENABLE
+  STENCIL_READ_MASK <mask>
+  STENCIL_WRITE_MASK <mask>
+  DEPTH_BOUNDS_TEST_ENABLE
+
+  [FRONT_FACE|BACK_FACE]
+    FAIL_OP <stencil_op>
+    DEPTH_FAIL_OP <stencil_op>
+    PASS_OP <stencil_op>
+    FUNC <comparison_func>
+  END
+END
+```
+
+Specify the depth and stencil mode for a graphics pipeline.
+When `DEPTH_STENCIL` is not specified, `DEPTH_ENABLE` is enabled by default.
+Omitting values leaves them at their default.
+
+* `depth_write_mask` is one of `ZERO` or `ALL`, defaulting to `ALL`
+* `comparison_func` is one of the values for [`D3D12_COMPARISON_FUNC`](https://learn.microsoft.com/en-us/windows/win32/api/d3d12/ne-d3d12-d3d12_comparison_func) like `NEVER`, `LESS_EQUAL`, etc., defaulting to `ALWAYS`
+* `mask` is a byte mask specified as an 8-bit integer, defaulting to 0xff
+* `stencil_op` is one of the values for [`D3D12_STENCIL_OP`](https://learn.microsoft.com/en-us/windows/win32/api/d3d12/ne-d3d12-d3d12_stencil_op) like `KEEP`, `INCR_SAT`, etc., defaulting to `KEEP`
+
+###### RASTERIZER
+
+```
+RASTERIZER
+  FILL_MODE <fill_mode>
+  CULL_MODE <cull_mode>
+  FRONT_COUNTER_CLOCKWISE
+  DEPTH_BIAS <bias>
+  DEPTH_BIAS_CLAMP <bias_clamp>
+  SLOPE_SCALED_DEPTH_BIAS <bias_slope>
+  DEPTH_CLIP_ENABLE
+  MULTISAMPLE_ENABLE
+  ANTIALIASED_LINE_ENABLE
+  FORCED_SAMPLE_COUNT <sample_count>
+  CONSERVATIVE_RASTER
+END
+```
+
+Specify the rasterizer state for a graphics pipeline.
+When `RASTERIZER` is not specified, `DEPTH_CLIP_ENABLE` is enabled by default.
+Omitting values leaves them at their default.
+
+* `fill_mode` is one of `WIREFRAME` or `SOLID`, defaulting to `SOLID`
+* `cull_mode` is one of `NONE`, `FRONT` or `BACK`, defaulting to `BACK`
+* `bias` is a 32-bit integer, see the [D3D12 Depth Bias documentation](https://learn.microsoft.com/en-us/windows/win32/direct3d11/d3d10-graphics-programming-guide-output-merger-stage-depth-bias)
+* `bias_clamp` is a 32-bit float, see the [D3D12 Depth Bias documentation](https://learn.microsoft.com/en-us/windows/win32/direct3d11/d3d10-graphics-programming-guide-output-merger-stage-depth-bias)
+* `bias_slope` is a 32-bit float, see the [D3D12 Depth Bias documentation](https://learn.microsoft.com/en-us/windows/win32/direct3d11/d3d10-graphics-programming-guide-output-merger-stage-depth-bias)
+* `sample_count` is one of `0`, `1`, `4`, `8` or `16`, defaulting to `0`, meaning disabled
+
+###### VIEW_INSTANCING
+
+```
+VIEW_INSTANCING
+  VIEWPORT_ARRAY_INDEX <index>
+  RENDER_TARGET_ARRAY_INDEX <index>
+END
+```
+
+Enable view instancing for a graphics pipeline.
+Can be specified multiple times, once for each instance.
+
+* `index` is a 32-bit integer
+
+###### VIEW_INSTANCING_CONFIG
+
+```
+VIEW_INSTANCING_CONFIG [enable_view_instance_masking]
+```
+
+Set the `D3D12_VIEW_INSTANCING_FLAG_ENABLE_VIEW_INSTANCE_MASKING` flag (or others) on the graphics pipeline.
+
+###### Example
+
+```
+PIPELINE cs_pipeline COMPUTE
   ATTACH cs_obj
   ROOT root_sig
+END
+
+PIPELINE mesh_pipeline MESH
+  AMPLIFICATION_SHADER amp_obj
+  MESH_SHADER mesh_obj
+  PIXEL_SHADER ps_obj
+  ROOT root_sig
+  BLEND
+    RENDER_TARGET 0
+      WRITE_MASK RED
+    END
+  END
+  DEPTH_STENCIL
+    STENCIL_ENABLE
+    FRONT_FACE
+      FAIL_OP INCR_SAT
+    END
+  END
+  RASTERIZER
+    FRONT_COUNTER_CLOCKWISE
+    DEPTH_BIAS 1
+  END
 END
 ```
 
@@ -647,51 +793,6 @@ Specify the root signature used for the dispatch.
 For traditional pipelines, it defaults to the root signature specified in the pipeline.
 
 * `root_identifier` is the root signature.
-
-#### BLEND
-
-```
-BLEND
-  ALPHA_TO_COVERAGE_ENABLE
-  RENDER_TARGET [<i>|ALL]
-    WRITE_MASK [RED] [GREEN] [BLUE] [ALPHA] [ALL]
-    BLEND
-      OP <blend_op>
-      SRC <blend>
-      DST <blend>
-      ALPHA_OP <blend_op>
-      ALPHA_SRC <blend>
-      ALPHA_DST <blend>
-    END
-    LOGIC
-      OP <logic_op>
-    END
-  END
-END
-```
-
-Specify the blend mode for a graphics dispatch.
-Defaults to TODO, single values can be changed by setting only these.
-
-* `ALPHA_TO_COVERAGE_ENABLE` sets the `alpha_to_coverage_enable` to `true`.
-* `i` is the render target index to configure. `ALL` sets the same config to all render targets.
-
-#### DEPTH_STENCIL
-
-```
-DEPTH_STENCIL
-  FAIL_OP <stencil_op>
-  DEPTH_FAIL_OP <stencil_op>
-  PASS_OP <stencil_op>
-  FUNC <comparison_func>
-END
-```
-
-Specify the depth stencil mode for a graphics dispatch.
-Defaults to TODO, single values can be changed by setting only these.
-
-* `ALPHA_TO_COVERAGE_ENABLE` sets the `alpha_to_coverage_enable` to `true`.
-* `i` is the render target index to configure. `ALL` sets the same config to all render targets.
 
 #### Example
 

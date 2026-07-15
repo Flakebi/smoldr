@@ -128,6 +128,42 @@ pub(crate) enum ParserError {
         #[label("As part of this statement")]
         identifier: Identifier,
     },
+    #[error("Too large render target index")]
+    #[diagnostic(
+        code(smoldr::parser::ParseRenderTargetIndex),
+        help("Render target index must be between 0-7")
+    )]
+    ParseRenderTargetIndex {
+        #[label("Index specified here")]
+        span: Range<usize>,
+        #[label("As part of this statement")]
+        identifier: Identifier,
+    },
+    #[error("BLEND and LOGIC cannot be set at the same time")]
+    #[diagnostic(
+        code(smoldr::parser::BlendAndLogic),
+        help("Specify only one or none of BLEND and LOGIC")
+    )]
+    BlendAndLogic {
+        #[label("BLEND specified here")]
+        blend_span: Range<usize>,
+        #[label("LOGIC specified here")]
+        logic_span: Range<usize>,
+        #[label("As part of this statement")]
+        identifier: Identifier,
+    },
+    #[error("RENDER_TARGET specified too often")]
+    #[diagnostic(
+        code(smoldr::parser::DuplicateRenderTarget),
+        help(
+            "RENDER_TARGET must be specified once without index or multiple times with distinct \
+             indices"
+        )
+    )]
+    DuplicateRenderTarget {
+        #[label("RENDER_TARGET specified here")]
+        identifier: Identifier,
+    },
     #[error("Data inconsistent with size")]
     #[diagnostic(code(smoldr::parser::RawSizeMismatch))]
     RawSizeMismatch {
