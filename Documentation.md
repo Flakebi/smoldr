@@ -80,6 +80,7 @@ This tool is intended as a (relatively) easy way to author DX12 compiler focused
       - [SLEEP](#sleep)
     - [Print and Check Buffers](#print-and-check-buffers)
       - [DUMP](#dump)
+      - [DISPLAY](#display)
       - [EXPECT](#expect)
       - [ASSERT](#assert)
 
@@ -1271,6 +1272,22 @@ DUMP buf uint32
 DUMP buf float EXPECT
 DUMP buf float PRINT_STRIDE 8
 DUMP buf uint32 PRINT_STRIDE 4 EXPECT
+```
+
+#### DISPLAY
+
+```
+DISPLAY <texture_identifier>
+```
+
+If there is a window, copy the texture to the window’s swapchain.
+
+* `texture_identifier` specifies the texture that is displayed.
+
+Example
+
+```
+DISPLAY texture
 ```
 
 #### EXPECT

@@ -130,6 +130,7 @@ pub(crate) trait Backend {
     ) -> Result<Duration> {
         Ok(Default::default())
     }
+    fn display(&mut self, _texture: IdentifierIdx, _dir: &Directive) -> Result<()> { Ok(()) }
 
     /// Get the byte representation of the shader identifier
     fn get_shader_id(&mut self, _id: IdentifierIdx) -> Result<Vec<u8>> { Ok(Default::default()) }

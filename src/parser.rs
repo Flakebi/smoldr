@@ -647,6 +647,7 @@ fn statement(s: &mut Input) -> Result<Directive> {
             .map_err(inv_statement("COMMAND_SIGNATURE <name> [STRIDE <stride>] [ROOT_SIG <root_sig>] content... END", id)),
         "DISPATCH" => dispatch(id.clone(), DispatchParseType::Dispatch)
             .map_err(inv_statement("DISPATCH <pipeline> content... RUN <x> <y> <z>", id)),
+        "DISPLAY" => display.map_err(inv_statement("DISPLAY <texture>", id)),
         "DISPATCHRAYS" => dispatch(id.clone(), DispatchParseType::DispatchRays)
             .map_err(inv_statement("DISPATCHRAYS <pipeline> content... RUN <raygentab> <misstab> <hittab> <calltab> <x> <y> <z>", id)),
         "DUMP" => dump(id.clone())
@@ -1598,6 +1599,13 @@ fn dispatch<'a>(mut id: Identifier, ty: DispatchParseType) -> impl Parser<'a, Di
         }}
         .parse_next(s)
     }
+}
+
+fn display(s: &mut Input) -> Result<Directive> {
+    seq! {Directive::Display {
+        identifier: delimited(space, identifier, line_end),
+    }}
+    .parse_next(s)
 }
 
 fn sleep<'a>(mut id: Identifier) -> impl Parser<'a, Directive> {

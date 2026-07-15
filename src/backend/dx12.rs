@@ -290,6 +290,8 @@ pub(crate) struct Dx12Backend {
     render_target_heap_size: u64,
     query_heap: Option<ID3D12QueryHeap>,
     query_buffer: Option<ID3D12Resource2>,
+    /// If there is a window, the back buffer of the current frame
+    window_buffer: Option<ID3D12Resource2>,
     /// Caches if raytracing is supported.
     supports_raytracing: Option<bool>,
     /// Caches if mesh shaders are supported.
@@ -298,6 +300,7 @@ pub(crate) struct Dx12Backend {
     /// Compiled HLSL sources as DXIL containers
     objects: HashMap<IdentifierIdx, Dxc::IDxcBlob>,
     buffers: HashMap<IdentifierIdx, ID3D12Resource2>,
+    textures: HashMap<IdentifierIdx, ID3D12Resource2>,
     root_sigs: HashMap<IdentifierIdx, ID3D12RootSignature>,
     shader_ids: HashMap<IdentifierIdx, ShaderId>,
     /// Buffer that stores the shader table and its stride
@@ -1149,6 +1152,7 @@ impl Dx12Window {
                     D3D12_RESOURCE_STATE_PRESENT,
                 ));
                 cmds.run(&self.backend)?;
+                self.backend.window_buffer = Some(buffer);
             }
 
             // Call render callback to draw a frame
@@ -1338,11 +1342,13 @@ impl Backend for Dx12Backend {
                 render_target_heap_size: 0,
                 query_heap: None,
                 query_buffer: None,
+                window_buffer: None,
                 supports_raytracing: None,
                 supports_mesh_shader: None,
 
                 objects: Default::default(),
                 buffers: Default::default(),
+                textures: Default::default(),
                 root_sigs: Default::default(),
                 shader_ids: Default::default(),
                 shader_tables: Default::default(),
@@ -1469,6 +1475,7 @@ impl Backend for Dx12Backend {
         self.descriptor_heap_size = 0;
         self.objects.clear();
         self.buffers.clear();
+        self.textures.clear();
         self.root_sigs.clear();
         self.shader_ids.clear();
         self.shader_tables.clear();
@@ -1478,6 +1485,7 @@ impl Backend for Dx12Backend {
         self.tlas.clear();
         self.blas.clear();
         self.command_signatures.clear();
+        self.window_buffer = None;
     }
 
     fn compile(
@@ -2122,6 +2130,7 @@ impl Backend for Dx12Backend {
         else {
             unreachable!()
         };
+        self.supports_mesh_shader()?;
 
         let blend = blend.clone().unwrap_or_default();
         let depth_stencil = depth_stencil.clone().unwrap_or_default();
@@ -2319,10 +2328,12 @@ impl Backend for Dx12Backend {
                 },
                 sample_desc: Subobject {
                     typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_SAMPLE_DESC,
+                    // TODO
                     obj: dxgi::DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },
                 },
                 sample_mask: Subobject {
                     typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_SAMPLE_MASK,
+                    // TODO
                     obj: u32::MAX,
                 },
                 cached_pso: Subobject {
@@ -2787,13 +2798,11 @@ impl Backend for Dx12Backend {
             let cmds;
             let pipe_root_sig;
             let mut is_graphics = false;
-            // let mut present_buffer = None;
             match content {
                 DispatchContent::Dispatch => {
                     let pipeline = &self.pipelines[&pipeline];
                     cmds = self.command_list_with_pipeline("dispatch", &pipeline.pipeline)?;
                     is_graphics = pipeline.typ != PipelineType::Compute;
-                    // cmds.SetPipelineState(&pipeline.pipeline);
                     pipe_root_sig = pipeline.root_sig;
 
                     if is_graphics {
@@ -2818,8 +2827,9 @@ impl Backend for Dx12Backend {
                             D3D12_RESOURCE_STATE_RENDER_TARGET,
                         ));
                         cmds.OMSetRenderTargets(1, Some(&win.back_buffer_view), false, None);
-                        // cmds.ClearRenderTargetView(win.back_buffer_view, &[0.0; 4], None);
-                        present_buffer = Some(win.back_buffer.clone());*/
+                        // TODO
+                        // OMSetBlendFactor, OMSetStencilRef, RSSetShadingRate, RSSetShadingRateImage, OMSetDepthBounds, SetSamplePositions, SetViewInstanceMask
+                        */
                     }
                 }
                 DispatchContent::DispatchRays { .. } => {
@@ -2833,7 +2843,7 @@ impl Backend for Dx12Backend {
                         let pipeline = &self.pipelines[&pipeline];
                         cmds = self
                             .command_list_with_pipeline("indirect dispatch", &pipeline.pipeline)?;
-                        cmds.SetPipelineState(&pipeline.pipeline);
+                        // TODO Graphics
                         pipe_root_sig = pipeline.root_sig;
                     }
                     PipelineKind::PipelineStateObject => {
@@ -2845,14 +2855,11 @@ impl Backend for Dx12Backend {
                 },
             }
 
+            let root_sig = root_sig.or(pipe_root_sig).map(|r| &self.root_sigs[&r]);
             if is_graphics {
-                cmds.SetGraphicsRootSignature(
-                    root_sig.or(pipe_root_sig).map(|r| &self.root_sigs[&r]),
-                );
+                cmds.SetGraphicsRootSignature(root_sig);
             } else {
-                cmds.SetComputeRootSignature(
-                    root_sig.or(pipe_root_sig).map(|r| &self.root_sigs[&r]),
-                );
+                cmds.SetComputeRootSignature(root_sig);
             }
             if let Some(heap) = self.descriptor_heap.clone() {
                 cmds.SetDescriptorHeaps(&[Some(heap)]);
@@ -2871,31 +2878,20 @@ impl Backend for Dx12Backend {
 
             // Views
             for (v, buffer) in root_val.views.iter().zip(ids.views.iter()) {
+                let gpu_addr = self.buffers[buffer].GetGPUVirtualAddress();
                 match v.typ.unwrap() {
                     ViewType::Uav => {
                         if is_graphics {
-                            cmds.SetGraphicsRootUnorderedAccessView(
-                                v.index,
-                                self.buffers[buffer].GetGPUVirtualAddress(),
-                            );
+                            cmds.SetGraphicsRootUnorderedAccessView(v.index, gpu_addr);
                         } else {
-                            cmds.SetComputeRootUnorderedAccessView(
-                                v.index,
-                                self.buffers[buffer].GetGPUVirtualAddress(),
-                            );
+                            cmds.SetComputeRootUnorderedAccessView(v.index, gpu_addr);
                         }
                     }
                     ViewType::Srv => {
                         if is_graphics {
-                            cmds.SetGraphicsRootShaderResourceView(
-                                v.index,
-                                self.buffers[buffer].GetGPUVirtualAddress(),
-                            );
+                            cmds.SetGraphicsRootShaderResourceView(v.index, gpu_addr);
                         } else {
-                            cmds.SetComputeRootShaderResourceView(
-                                v.index,
-                                self.buffers[buffer].GetGPUVirtualAddress(),
-                            );
+                            cmds.SetComputeRootShaderResourceView(v.index, gpu_addr);
                         }
                     }
                 }
@@ -2919,7 +2915,6 @@ impl Backend for Dx12Backend {
             match content {
                 DispatchContent::Dispatch => {
                     let DispatchType::Dispatch { dimensions } = typ else { unreachable!() };
-                    self.supports_mesh_shader()?;
                     let pipeline = &self.pipelines[&pipeline];
                     match pipeline.typ {
                         PipelineType::Compute => {
@@ -3041,14 +3036,6 @@ impl Backend for Dx12Backend {
                 0,
             );
 
-            /*if let Some(buffer) = present_buffer {
-                resource_barrier!(cmds(
-                    &buffer,
-                    D3D12_RESOURCE_STATE_RENDER_TARGET,
-                    D3D12_RESOURCE_STATE_PRESENT,
-                ));
-            }*/
-
             cmds.run(self)?;
 
             // Read back timestamps
@@ -3071,6 +3058,41 @@ impl Backend for Dx12Backend {
                     .expect("Error when converting timestamp"),
             ))
         }
+    }
+
+    fn display(&mut self, texture: IdentifierIdx, _: &Directive) -> Result<()> {
+        if let Some(win) = &self.window_buffer {
+            // Copy from texture to window buffer
+            // TODO Extra textures or re-use buffers?
+            let texture = &self.textures[&texture];
+
+            unsafe {
+                let cmds = self.command_list("display")?;
+                resource_barrier!(cmds(
+                    win,
+                    D3D12_RESOURCE_STATE_PRESENT,
+                    D3D12_RESOURCE_STATE_COPY_DEST,
+                ));
+                resource_barrier!(cmds(
+                    texture,
+                    D3D12_RESOURCE_STATE_COMMON,
+                    D3D12_RESOURCE_STATE_COPY_SOURCE,
+                ));
+                cmds.CopyResource(win, texture);
+                resource_barrier!(cmds(
+                    win,
+                    D3D12_RESOURCE_STATE_COPY_DEST,
+                    D3D12_RESOURCE_STATE_PRESENT,
+                ));
+                resource_barrier!(cmds(
+                    texture,
+                    D3D12_RESOURCE_STATE_COPY_SOURCE,
+                    D3D12_RESOURCE_STATE_COMMON,
+                ));
+                cmds.run(self)?;
+            }
+        }
+        Ok(())
     }
 
     fn get_shader_id(&mut self, id: IdentifierIdx) -> Result<Vec<u8>> {

@@ -50,6 +50,7 @@ enum IdentifierType {
     Blas,
     Tlas,
     Buffer,
+    Texture,
     RootSig,
     ShaderId,
     ShaderTable,
@@ -853,6 +854,9 @@ enum Directive {
         root_sig: Option<Identifier>,
         typ: DispatchType,
     },
+    Display {
+        identifier: Identifier,
+    },
     Include {
         identifier: Identifier,
         path: Identifier,
@@ -927,6 +931,7 @@ impl fmt::Display for IdentifierType {
             Self::Blas => "BLAS",
             Self::Tlas => "TLAS",
             Self::Buffer => "BUFFER",
+            Self::Texture => "TEXTURE",
             Self::RootSig => "ROOT",
             Self::ShaderId => "SHADERID",
             Self::ShaderTable => "SHADERTABLE",
@@ -1428,6 +1433,7 @@ impl Directive {
             | Self::View { name, .. }
             | Self::CommandSignature { name, .. } => name,
             Self::Dispatch { identifier, .. }
+            | Self::Display { identifier, .. }
             | Self::Include { identifier, .. }
             | Self::Sleep { identifier, .. }
             | Self::Dump { identifier, .. }
@@ -1751,6 +1757,7 @@ impl State {
                         let mut ps = None;
                         for s in shaders {
                             match s.1 {
+                                // TODO Proper errors instead of asserts/panics
                                 ShaderType::Compute => panic!("No compute in mesh pipelines"),
                                 ShaderType::Amplification => {
                                     assert!(ams.is_none(), "No more than one amplification shader");
@@ -1897,6 +1904,10 @@ impl State {
                     time = %humantime::format_duration(time),
                     "Dispatch from {name}:{line} finished"
                 );
+            }
+            Directive::Display { identifier } => {
+                let texture = self.get_type(identifier, IdentifierType::Texture)?;
+                backend.display(texture, dir)?;
             }
             Directive::Include { identifier, path } => {
                 // Make path relative to the file it is included from
