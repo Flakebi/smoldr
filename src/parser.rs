@@ -587,6 +587,134 @@ fn cull_mode(s: &mut Input) -> Result<CullMode> {
     .parse_next(s)
 }
 
+fn format(s: &mut Input) -> Result<Format> {
+    dispatch_id! {id;
+        "R32G32B32A32_TYPELESS" => empty.value(Format::R32g32b32a32Typeless),
+        "R32G32B32A32_FLOAT" => empty.value(Format::R32g32b32a32Float),
+        "R32G32B32A32_UINT" => empty.value(Format::R32g32b32a32Uint),
+        "R32G32B32A32_SINT" => empty.value(Format::R32g32b32a32Sint),
+        "R32G32B32_TYPELESS" => empty.value(Format::R32g32b32Typeless),
+        "R32G32B32_FLOAT" => empty.value(Format::R32g32b32Float),
+        "R32G32B32_UINT" => empty.value(Format::R32g32b32Uint),
+        "R32G32B32_SINT" => empty.value(Format::R32g32b32Sint),
+        "R16G16B16A16_TYPELESS" => empty.value(Format::R16g16b16a16Typeless),
+        "R16G16B16A16_FLOAT" => empty.value(Format::R16g16b16a16Float),
+        "R16G16B16A16_UNORM" => empty.value(Format::R16g16b16a16Unorm),
+        "R16G16B16A16_UINT" => empty.value(Format::R16g16b16a16Uint),
+        "R16G16B16A16_SNORM" => empty.value(Format::R16g16b16a16Snorm),
+        "R16G16B16A16_SINT" => empty.value(Format::R16g16b16a16Sint),
+        "R32G32_TYPELESS" => empty.value(Format::R32g32Typeless),
+        "R32G32_FLOAT" => empty.value(Format::R32g32Float),
+        "R32G32_UINT" => empty.value(Format::R32g32Uint),
+        "R32G32_SINT" => empty.value(Format::R32g32Sint),
+        "R32G8X24_TYPELESS" => empty.value(Format::R32g8x24Typeless),
+        "D32_FLOAT_S8X24_UINT" => empty.value(Format::D32FloatS8x24Uint),
+        "R32_FLOAT_X8X24_TYPELESS" => empty.value(Format::R32FloatX8x24Typeless),
+        "X32_TYPELESS_G8X24_UINT" => empty.value(Format::X32TypelessG8x24Uint),
+        "R10G10B10A2_TYPELESS" => empty.value(Format::R10g10b10a2Typeless),
+        "R10G10B10A2_UNORM" => empty.value(Format::R10g10b10a2Unorm),
+        "R10G10B10A2_UINT" => empty.value(Format::R10g10b10a2Uint),
+        "R11G11B10_FLOAT" => empty.value(Format::R11g11b10Float),
+        "R8G8B8A8_TYPELESS" => empty.value(Format::R8g8b8a8Typeless),
+        "R8G8B8A8_UNORM" => empty.value(Format::R8g8b8a8Unorm),
+        "R8G8B8A8_UNORM_SRGB" => empty.value(Format::R8g8b8a8UnormSrgb),
+        "R8G8B8A8_UINT" => empty.value(Format::R8g8b8a8Uint),
+        "R8G8B8A8_SNORM" => empty.value(Format::R8g8b8a8Snorm),
+        "R8G8B8A8_SINT" => empty.value(Format::R8g8b8a8Sint),
+        "R16G16_TYPELESS" => empty.value(Format::R16g16Typeless),
+        "R16G16_FLOAT" => empty.value(Format::R16g16Float),
+        "R16G16_UNORM" => empty.value(Format::R16g16Unorm),
+        "R16G16_UINT" => empty.value(Format::R16g16Uint),
+        "R16G16_SNORM" => empty.value(Format::R16g16Snorm),
+        "R16G16_SINT" => empty.value(Format::R16g16Sint),
+        "R32_TYPELESS" => empty.value(Format::R32Typeless),
+        "D32_FLOAT" => empty.value(Format::D32Float),
+        "R32_FLOAT" => empty.value(Format::R32Float),
+        "R32_UINT" => empty.value(Format::R32Uint),
+        "R32_SINT" => empty.value(Format::R32Sint),
+        "R24G8_TYPELESS" => empty.value(Format::R24g8Typeless),
+        "D24_UNORM_S8_UINT" => empty.value(Format::D24UnormS8Uint),
+        "R24_UNORM_X8_TYPELESS" => empty.value(Format::R24UnormX8Typeless),
+        "X24_TYPELESS_G8_UINT" => empty.value(Format::X24TypelessG8Uint),
+        "R8G8_TYPELESS" => empty.value(Format::R8g8Typeless),
+        "R8G8_UNORM" => empty.value(Format::R8g8Unorm),
+        "R8G8_UINT" => empty.value(Format::R8g8Uint),
+        "R8G8_SNORM" => empty.value(Format::R8g8Snorm),
+        "R8G8_SINT" => empty.value(Format::R8g8Sint),
+        "R16_TYPELESS" => empty.value(Format::R16Typeless),
+        "R16_FLOAT" => empty.value(Format::R16Float),
+        "D16_UNORM" => empty.value(Format::D16Unorm),
+        "R16_UNORM" => empty.value(Format::R16Unorm),
+        "R16_UINT" => empty.value(Format::R16Uint),
+        "R16_SNORM" => empty.value(Format::R16Snorm),
+        "R16_SINT" => empty.value(Format::R16Sint),
+        "R8_TYPELESS" => empty.value(Format::R8Typeless),
+        "R8_UNORM" => empty.value(Format::R8Unorm),
+        "R8_UINT" => empty.value(Format::R8Uint),
+        "R8_SNORM" => empty.value(Format::R8Snorm),
+        "R8_SINT" => empty.value(Format::R8Sint),
+        "A8_UNORM" => empty.value(Format::A8Unorm),
+        "R1_UNORM" => empty.value(Format::R1Unorm),
+        "R9G9B9E5_SHAREDEXP" => empty.value(Format::R9g9b9e5Sharedexp),
+        "R8G8_B8G8_UNORM" => empty.value(Format::R8g8B8g8Unorm),
+        "G8R8_G8B8_UNORM" => empty.value(Format::G8r8G8b8Unorm),
+        "BC1_TYPELESS" => empty.value(Format::Bc1Typeless),
+        "BC1_UNORM" => empty.value(Format::Bc1Unorm),
+        "BC1_UNORM_SRGB" => empty.value(Format::Bc1UnormSrgb),
+        "BC2_TYPELESS" => empty.value(Format::Bc2Typeless),
+        "BC2_UNORM" => empty.value(Format::Bc2Unorm),
+        "BC2_UNORM_SRGB" => empty.value(Format::Bc2UnormSrgb),
+        "BC3_TYPELESS" => empty.value(Format::Bc3Typeless),
+        "BC3_UNORM" => empty.value(Format::Bc3Unorm),
+        "BC3_UNORM_SRGB" => empty.value(Format::Bc3UnormSrgb),
+        "BC4_TYPELESS" => empty.value(Format::Bc4Typeless),
+        "BC4_UNORM" => empty.value(Format::Bc4Unorm),
+        "BC4_SNORM" => empty.value(Format::Bc4Snorm),
+        "BC5_TYPELESS" => empty.value(Format::Bc5Typeless),
+        "BC5_UNORM" => empty.value(Format::Bc5Unorm),
+        "BC5_SNORM" => empty.value(Format::Bc5Snorm),
+        "B5G6R5_UNORM" => empty.value(Format::B5g6r5Unorm),
+        "B5G5R5A1_UNORM" => empty.value(Format::B5g5r5a1Unorm),
+        "B8G8R8A8_UNORM" => empty.value(Format::B8g8r8a8Unorm),
+        "B8G8R8X8_UNORM" => empty.value(Format::B8g8r8x8Unorm),
+        "R10G10B10_XR_BIAS_A2_UNORM" => empty.value(Format::R10g10b10XrBiasA2Unorm),
+        "B8G8R8A8_TYPELESS" => empty.value(Format::B8g8r8a8Typeless),
+        "B8G8R8A8_UNORM_SRGB" => empty.value(Format::B8g8r8a8UnormSrgb),
+        "B8G8R8X8_TYPELESS" => empty.value(Format::B8g8r8x8Typeless),
+        "B8G8R8X8_UNORM_SRGB" => empty.value(Format::B8g8r8x8UnormSrgb),
+        "BC6H_TYPELESS" => empty.value(Format::Bc6hTypeless),
+        "BC6H_UF16" => empty.value(Format::Bc6hUf16),
+        "BC6H_SF16" => empty.value(Format::Bc6hSf16),
+        "BC7_TYPELESS" => empty.value(Format::Bc7Typeless),
+        "BC7_UNORM" => empty.value(Format::Bc7Unorm),
+        "BC7_UNORM_SRGB" => empty.value(Format::Bc7UnormSrgb),
+        "AYUV" => empty.value(Format::Ayuv),
+        "Y410" => empty.value(Format::Y410),
+        "Y416" => empty.value(Format::Y416),
+        "NV12" => empty.value(Format::Nv12),
+        "P010" => empty.value(Format::P010),
+        "P016" => empty.value(Format::P016),
+        "420_OPAQUE" => empty.value(Format::_420Opaque),
+        "YUY2" => empty.value(Format::Yuy2),
+        "Y210" => empty.value(Format::Y210),
+        "Y216" => empty.value(Format::Y216),
+        "NV11" => empty.value(Format::Nv11),
+        "AI44" => empty.value(Format::Ai44),
+        "IA44" => empty.value(Format::Ia44),
+        "P8" => empty.value(Format::P8),
+        "A8P8" => empty.value(Format::A8p8),
+        "B4G4R4A4_UNORM" => empty.value(Format::B4g4r4a4Unorm),
+        "P208" => empty.value(Format::P208),
+        "V208" => empty.value(Format::V208),
+        "V408" => empty.value(Format::V408),
+        "SAMPLER_FEEDBACK_MIN_MIP_OPAQUE" => empty.value(Format::SamplerFeedbackMinMipOpaque),
+        "SAMPLER_FEEDBACK_MIP_REGION_USED_OPAQUE" => empty.value(Format::SamplerFeedbackMipRegionUsedOpaque),
+        "A4B4G4R4_UNORM" => empty.value(Format::A4b4g4r4Unorm),
+        _ => inv_word(id.span, "format", &["R32G32B32A32_TYPELESS", "R32G32B32A32_FLOAT", "R32G32B32A32_UINT", "R32G32B32A32_SINT", "R32G32B32_TYPELESS", "R32G32B32_FLOAT", "R32G32B32_UINT", "R32G32B32_SINT", "R16G16B16A16_TYPELESS", "R16G16B16A16_FLOAT", "R16G16B16A16_UNORM", "R16G16B16A16_UINT", "R16G16B16A16_SNORM", "R16G16B16A16_SINT", "R32G32_TYPELESS", "R32G32_FLOAT", "R32G32_UINT", "R32G32_SINT", "R32G8X24_TYPELESS", "D32_FLOAT_S8X24_UINT", "R32_FLOAT_X8X24_TYPELESS", "X32_TYPELESS_G8X24_UINT", "R10G10B10A2_TYPELESS", "R10G10B10A2_UNORM", "R10G10B10A2_UINT", "R11G11B10_FLOAT", "R8G8B8A8_TYPELESS", "R8G8B8A8_UNORM", "R8G8B8A8_UNORM_SRGB", "R8G8B8A8_UINT", "R8G8B8A8_SNORM", "R8G8B8A8_SINT", "R16G16_TYPELESS", "R16G16_FLOAT", "R16G16_UNORM", "R16G16_UINT", "R16G16_SNORM", "R16G16_SINT", "R32_TYPELESS", "D32_FLOAT", "R32_FLOAT", "R32_UINT", "R32_SINT", "R24G8_TYPELESS", "D24_UNORM_S8_UINT", "R24_UNORM_X8_TYPELESS", "X24_TYPELESS_G8_UINT", "R8G8_TYPELESS", "R8G8_UNORM", "R8G8_UINT", "R8G8_SNORM", "R8G8_SINT", "R16_TYPELESS", "R16_FLOAT", "D16_UNORM", "R16_UNORM", "R16_UINT", "R16_SNORM", "R16_SINT", "R8_TYPELESS", "R8_UNORM", "R8_UINT", "R8_SNORM", "R8_SINT", "A8_UNORM", "R1_UNORM", "R9G9B9E5_SHAREDEXP", "R8G8_B8G8_UNORM", "G8R8_G8B8_UNORM", "BC1_TYPELESS", "BC1_UNORM", "BC1_UNORM_SRGB", "BC2_TYPELESS", "BC2_UNORM", "BC2_UNORM_SRGB", "BC3_TYPELESS", "BC3_UNORM", "BC3_UNORM_SRGB", "BC4_TYPELESS", "BC4_UNORM", "BC4_SNORM", "BC5_TYPELESS", "BC5_UNORM", "BC5_SNORM", "B5G6R5_UNORM", "B5G5R5A1_UNORM", "B8G8R8A8_UNORM", "B8G8R8X8_UNORM", "R10G10B10_XR_BIAS_A2_UNORM", "B8G8R8A8_TYPELESS", "B8G8R8A8_UNORM_SRGB", "B8G8R8X8_TYPELESS", "B8G8R8X8_UNORM_SRGB", "BC6H_TYPELESS", "BC6H_UF16", "BC6H_SF16", "BC7_TYPELESS", "BC7_UNORM", "BC7_UNORM_SRGB", "AYUV", "Y410", "Y416", "NV12", "P010", "P016", "420_OPAQUE", "YUY2", "Y210", "Y216", "NV11", "AI44", "IA44", "P8", "A8P8", "B4G4R4A4_UNORM", "P208", "V208", "V408", "SAMPLER_FEEDBACK_MIN_MIP_OPAQUE", "SAMPLER_FEEDBACK_MIP_REGION_USED_OPAQUE", "A4B4G4R4_UNORM"]),
+    }
+    .parse_next(s)
+}
+
 /// Everything until `END` comes up on a line on its own.
 ///
 /// Also parses following line ends.
@@ -641,6 +769,8 @@ fn statement(s: &mut Input) -> Result<Directive> {
         "BLAS" => blas.map_err(inv_statement("BLAS <name> content... END", id)),
         "BUFFER" => buffer
             .map_err(inv_statement("BUFFER <name> [DATA_TYPE <tyflagspe> SIZE <elements> | RAW <bytes> ... END]", id)),
+        "TEXTURE" => texture
+            .map_err(inv_statement("TEXTURE <resource_identifier> FORMAT <format> WIDTH <size> [HEIGHT <size>] [DEPTH <size>] FILL <r> <g> <b> <a>", id)),
         "COLLECTION" => pso(PipelineStateObjectType::Collection)
             .map_err(inv_statement("COLLECTION name [ADDTO existing_name]", id)),
         "COMMAND_SIGNATURE" => command_signature
@@ -1041,6 +1171,53 @@ fn buffer(s: &mut Input) -> Result<Directive> {
         name: identifier,
         _: space,
         content: content,
+    }}
+    .parse_next(s)
+}
+
+fn texture(s: &mut Input) -> Result<Directive> {
+    let mut format_field = Default::default();
+    let mut width = Default::default();
+    let mut height = Default::default();
+    let mut depth = Default::default();
+    let mut array = Default::default();
+    let mut mip_levels = Default::default();
+    let mut sample_desc = Default::default();
+    let mut clear: (Option<Vec<_>>, _) = Default::default();
+    let mut config = Default::default();
+
+    seq! {Directive::Texture {
+        _: space,
+        name: identifier,
+        _: line_end,
+        _: repeat::<_, _, (), _, _>(0.., dispatch_id! {id;
+            "FORMAT" => no_dup(&mut format_field, id.clone(), delimited(space, format, line_end)),
+            "WIDTH" => no_dup(&mut width, id.clone(), delimited(space, uint, line_end)),
+            "HEIGHT" => no_dup(&mut height, id.clone(), delimited(space, uint, line_end)),
+            "DEPTH" => no_dup(&mut depth, id.clone(), delimited(space, uint, line_end)),
+            "ARRAY" => no_dup(&mut array, id.clone(), delimited(space, uint, line_end)),
+            "MIP_LEVELS" => no_dup(&mut mip_levels, id.clone(), delimited(space, uint, line_end)),
+            "SAMPLE_DESC" => no_dup(&mut sample_desc, id.clone(), seq! {SampleDesc {
+                _: space,
+                count: uint,
+                _: space,
+                quality: uint,
+                _: line_end,
+            }}),
+            "CLEAR" => no_dup(&mut clear, id.clone(), repeat(2..4, preceded(space, number::<f32>))),
+            "CONFIG" => flags(&mut config, id),
+            _ => fail,
+        }),
+        format: empty.value(format_field.0.ok_or_else(|| panic!("TODO"))?),
+        width: empty.value(width.0.ok_or_else(|| panic!("TODO"))?),
+        height: empty.value(height.0),
+        depth: empty.value(depth.0), // TODO Ensure depth is not specified when height is not
+        array: empty.value(array.0), // TODO Ensure array is not specified when depth is
+        mip_levels: empty.value(mip_levels.0),
+        sample_desc: empty.value(sample_desc.0.take()),
+        clear_color: empty.value(panic!("TODO")),
+        config: empty.value(config.0.unwrap_or_default()),
+        _: line_end,
     }}
     .parse_next(s)
 }

@@ -10,7 +10,7 @@ struct VertexAttributes
   float3 color : COLOR0;
 };
 
-[RootSignature(ROOT_SIG)]
+[RootSignature("")]
 [numthreads(1, 1, 1)]
 [outputtopology("triangle")]
 void MS(uint3 DTid : SV_DispatchThreadID, out indices uint3 indices[1], out vertices VertexAttributes vertices[3])
@@ -50,11 +50,13 @@ BUFFER inbuf DATA_TYPE float SIZE 64 SERIES_FROM 0 INC_BY .25
 BUFFER outbuf DATA_TYPE float SIZE 32 FILL 0
 
 # Texture using window size if there is a window or 64x64 default size
-# TODO Initialize with Clear value
-# TODO Create view from texture
 # TODO Create sampler for shader input
-# TODO Copy texture to window (format?)
-# TEXTURE img FORMAT R8B8G8A8 WIDTH 64 HEIGHT 64 DEPTH 1
+TEXTURE img
+  FORMAT R8B8G8A8
+  SIZE 64 64 1
+  FILL 0 0 0 0
+  CONFIG rendertarget
+END
 
 # The root signature
 # TODO Extract from shader?
@@ -65,16 +67,20 @@ PIPELINE meshpipe MESH
   MESH_SHADER meshobj
   PIXEL_SHADER psobj
   # FORMAT R8B8G8A8
-  ROOT   default
+  ROOT default
 END
+
+VIEW img_target img AS RTV
 
 # Run the pipeline in a 1x1x1 dispatch
 DISPATCH meshpipe
-  // RENDERTARGET img
+  RENDERTARGET img_target
 RUN 1 1 1
 
-# Copy img to window if there is one
-# DISPLAY img
+# Show img in window if there is one
+DISPLAY img
+
+# TODO Allow copying to buffer to use EXPECT or use EXPECT directly with a supported FORMAT?
 
 # Check that the shaders worked as expected
 #EXPECT outbuf float OFFSET 0 EQ 10.25 11.5 12.75 14

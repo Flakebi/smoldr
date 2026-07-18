@@ -259,6 +259,14 @@ bitflags! {
         const NONE = 0;
         const ENABLE_VIEW_INSTANCE_MASKING = 1;
     }
+
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+    struct TextureConfig: u32 {
+        const NONE = 0;
+        const RENDERTARGET = 1;
+        const DEPTH_STENCIL = 2;
+        const UAV = 4;
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -456,6 +464,143 @@ enum CullMode {
     Front,
     #[default]
     Back,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+enum Format {
+    R32g32b32a32Typeless = 1,
+    R32g32b32a32Float,
+    R32g32b32a32Uint,
+    R32g32b32a32Sint,
+    R32g32b32Typeless,
+    R32g32b32Float,
+    R32g32b32Uint,
+    R32g32b32Sint,
+    R16g16b16a16Typeless,
+    R16g16b16a16Float,
+    R16g16b16a16Unorm,
+    R16g16b16a16Uint,
+    R16g16b16a16Snorm,
+    R16g16b16a16Sint,
+    R32g32Typeless,
+    R32g32Float,
+    R32g32Uint,
+    R32g32Sint,
+    R32g8x24Typeless,
+    D32FloatS8x24Uint,
+    R32FloatX8x24Typeless,
+    X32TypelessG8x24Uint,
+    R10g10b10a2Typeless,
+    R10g10b10a2Unorm,
+    R10g10b10a2Uint,
+    R11g11b10Float,
+    R8g8b8a8Typeless,
+    R8g8b8a8Unorm,
+    R8g8b8a8UnormSrgb,
+    R8g8b8a8Uint,
+    R8g8b8a8Snorm,
+    R8g8b8a8Sint,
+    R16g16Typeless,
+    R16g16Float,
+    R16g16Unorm,
+    R16g16Uint,
+    R16g16Snorm,
+    R16g16Sint,
+    R32Typeless,
+    D32Float,
+    R32Float,
+    R32Uint,
+    R32Sint,
+    R24g8Typeless,
+    D24UnormS8Uint,
+    R24UnormX8Typeless,
+    X24TypelessG8Uint,
+    R8g8Typeless,
+    R8g8Unorm,
+    R8g8Uint,
+    R8g8Snorm,
+    R8g8Sint,
+    R16Typeless,
+    R16Float,
+    D16Unorm,
+    R16Unorm,
+    R16Uint,
+    R16Snorm,
+    R16Sint,
+    R8Typeless,
+    R8Unorm,
+    R8Uint,
+    R8Snorm,
+    R8Sint,
+    A8Unorm,
+    R1Unorm,
+    R9g9b9e5Sharedexp,
+    R8g8B8g8Unorm,
+    G8r8G8b8Unorm,
+    Bc1Typeless,
+    Bc1Unorm,
+    Bc1UnormSrgb,
+    Bc2Typeless,
+    Bc2Unorm,
+    Bc2UnormSrgb,
+    Bc3Typeless,
+    Bc3Unorm,
+    Bc3UnormSrgb,
+    Bc4Typeless,
+    Bc4Unorm,
+    Bc4Snorm,
+    Bc5Typeless,
+    Bc5Unorm,
+    Bc5Snorm,
+    B5g6r5Unorm,
+    B5g5r5a1Unorm,
+    B8g8r8a8Unorm,
+    B8g8r8x8Unorm,
+    R10g10b10XrBiasA2Unorm,
+    B8g8r8a8Typeless,
+    B8g8r8a8UnormSrgb,
+    B8g8r8x8Typeless,
+    B8g8r8x8UnormSrgb,
+    Bc6hTypeless,
+    Bc6hUf16,
+    Bc6hSf16,
+    Bc7Typeless,
+    Bc7Unorm,
+    Bc7UnormSrgb,
+    Ayuv,
+    Y410,
+    Y416,
+    Nv12,
+    P010,
+    P016,
+    _420Opaque,
+    Yuy2,
+    Y210,
+    Y216,
+    Nv11,
+    Ai44,
+    Ia44,
+    P8,
+    A8p8,
+    B4g4r4a4Unorm,
+    P208 = 130,
+    V208,
+    V408,
+    SamplerFeedbackMinMipOpaque = 189,
+    SamplerFeedbackMipRegionUsedOpaque,
+    A4b4g4r4Unorm,
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+struct SampleDesc {
+    count: u32,
+    quality: u32,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+enum ClearColor {
+    Color([f32; 4]),
+    DepthStencil { depth: f32, stencil: u8 },
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -788,6 +933,18 @@ enum Directive {
         name: Identifier,
         content: UnresolvedValueContent,
     },
+    Texture {
+        name: Identifier,
+        format: Format,
+        width: u64,
+        height: Option<u64>,
+        depth: Option<u64>,
+        array: Option<u64>,
+        mip_levels: Option<u16>,
+        sample_desc: Option<SampleDesc>,
+        clear_color: Option<ClearColor>,
+        config: TextureConfig,
+    },
     RootSig {
         name: Identifier,
         entries: Vec<RootSigEntry>,
@@ -1030,6 +1187,10 @@ impl Default for RasterizerState {
             conservative_raster: Default::default(),
         }
     }
+}
+
+impl Default for SampleDesc {
+    fn default() -> Self { Self { count: 1, quality: 0 } }
 }
 
 impl Fill {
@@ -1424,6 +1585,7 @@ impl Directive {
             | Self::Blas { name, .. }
             | Self::Tlas { name, .. }
             | Self::Buffer { name, .. }
+            | Self::Texture { name, .. }
             | Self::RootSig { name, .. }
             | Self::RootSigDxil { name, .. }
             | Self::ShaderId { name, .. }
@@ -1690,6 +1852,10 @@ impl State {
                 let content = content.resolve(self, backend)?;
                 backend.create_buffer(id, content.len(), dir)?;
                 backend.upload(id, &mut |data| content.fill(data))?;
+            }
+            Directive::Texture { name, .. } => {
+                let id = self.add_identifier(name.clone(), IdentifierType::Texture)?;
+                backend.create_texture(id, dir)?;
             }
             Directive::RootSig { name, .. } => {
                 let id = self.add_identifier(name.clone(), IdentifierType::RootSig)?;

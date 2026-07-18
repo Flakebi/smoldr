@@ -78,6 +78,7 @@ pub(crate) trait Backend {
     fn create_buffer(&mut self, _id: IdentifierIdx, _len: usize, _dir: &Directive) -> Result<()> {
         Ok(())
     }
+    fn create_texture(&mut self, _id: IdentifierIdx, _dir: &Directive) -> Result<()> { Ok(()) }
     fn create_root_sig(&mut self, _id: IdentifierIdx, _dir: &Directive) -> Result<()> { Ok(()) }
     fn create_root_sig_dxil(
         &mut self, _id: IdentifierIdx, _object: IdentifierIdx, _dir: &Directive,

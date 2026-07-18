@@ -54,6 +54,7 @@ This tool is intended as a (relatively) easy way to author DX12 compiler focused
     - [Memory allocation on the GPU](#memory-allocation-on-the-gpu)
       - [BUFFER](#buffer)
         - [Example](#example-3)
+      - [TEXTURE](#texture)
       - [VIEW](#view)
         - [Untyped Buffer View](#untyped-buffer-view)
         - [Typed Buffer View](#typed-buffer-view)
@@ -840,6 +841,32 @@ BUFFER buf RAW 128
 END
 ```
 
+#### TEXTURE
+
+```
+TEXTURE <resource_identifier>
+  FORMAT <format>
+  WIDTH <width>
+  HEIGHT <height>
+  DEPTH <depth>
+  ARRAY <array>
+  MIP_LEVELS <levels>
+  SAMPLE_DESC <count> <quality>
+  CLEAR [<r> <g> <b> <a>|<depth> <stencil>]
+  CONFIG [rendertarget] [depth_stencil] [uav]
+END
+```
+
+Allocate a texture on the GPU, clearing its content with the given color.
+
+* `resource_identifier` is the identifier that can be used in later commands to reference the created resource.
+* `format` is one of the values for [`DXGI_FORMAT`](https://learn.microsoft.com/en-us/windows/win32/api/dxgiformat/ne-dxgiformat-dxgi_format) like `R8G8B8A8_TYPELESS`.
+* `width`/`height`/`depth`/`array` is size of the texture. The specified sizes determine if a 1D, 2D or 3D texture (array) is created.
+* `levels` is the number of mip map levels in the texture, defaulting to 1.
+* `count` and `quality` specify the sampling, defaulting to count 1 and quality 0.
+* `r`/`g`/`b`/`a` are four float values to initialize the texture with a color. This requires one of `rendertarget` or `uav` to be specified.
+* `depth`/`stencil` are a float and byte value to initialize the texture. This requires `depth_stencil` to be specified.
+
 #### VIEW
 
 ```
@@ -851,12 +878,12 @@ Declare a view to a buffer.
 * `view_identifier` is the name assigned to the view.
 * `buffer_identifier` is the memory buffer the view points to.
 * `view_description` specifies the type and other properties of the view as documented below.
-  `UAV` in the description is a read-write view, `SRV` is a read-only view.
+  `UAV` in the description is a read-write view, `SRV` is a read-only view, `RTV` a render target view, `DSV` a depth-stencil view.
 
 ##### Untyped Buffer View
 
 ```
-[UAV|SRV]
+[UAV|SRV|RTV|DSV]
 ```
 
 Declares an untyped buffer view.
@@ -897,6 +924,7 @@ VIEW view buf AS UAV
 VIEW view buf AS TYPED UAV float
 VIEW view buf AS STRUCTURED SRV BYTES 16
 VIEW rtas tlas AS RTAS SRV
+VIEW rtv texture AS RTV
 ```
 
 ### Values

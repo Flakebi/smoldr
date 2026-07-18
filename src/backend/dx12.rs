@@ -258,6 +258,168 @@ const _: () = assert!(CullMode::None as u32 == D3D12_CULL_MODE_NONE.0 as u32);
 const _: () = assert!(CullMode::Front as u32 == D3D12_CULL_MODE_FRONT.0 as u32);
 const _: () = assert!(CullMode::Back as u32 == D3D12_CULL_MODE_BACK.0 as u32);
 
+const _: () = assert!(
+    Format::R32g32b32a32Typeless as u32 == dxgi::DXGI_FORMAT_R32G32B32A32_TYPELESS.0 as u32
+);
+const _: () =
+    assert!(Format::R32g32b32a32Float as u32 == dxgi::DXGI_FORMAT_R32G32B32A32_FLOAT.0 as u32);
+const _: () =
+    assert!(Format::R32g32b32a32Uint as u32 == dxgi::DXGI_FORMAT_R32G32B32A32_UINT.0 as u32);
+const _: () =
+    assert!(Format::R32g32b32a32Sint as u32 == dxgi::DXGI_FORMAT_R32G32B32A32_SINT.0 as u32);
+const _: () =
+    assert!(Format::R32g32b32Typeless as u32 == dxgi::DXGI_FORMAT_R32G32B32_TYPELESS.0 as u32);
+const _: () = assert!(Format::R32g32b32Float as u32 == dxgi::DXGI_FORMAT_R32G32B32_FLOAT.0 as u32);
+const _: () = assert!(Format::R32g32b32Uint as u32 == dxgi::DXGI_FORMAT_R32G32B32_UINT.0 as u32);
+const _: () = assert!(Format::R32g32b32Sint as u32 == dxgi::DXGI_FORMAT_R32G32B32_SINT.0 as u32);
+const _: () = assert!(
+    Format::R16g16b16a16Typeless as u32 == dxgi::DXGI_FORMAT_R16G16B16A16_TYPELESS.0 as u32
+);
+const _: () =
+    assert!(Format::R16g16b16a16Float as u32 == dxgi::DXGI_FORMAT_R16G16B16A16_FLOAT.0 as u32);
+const _: () =
+    assert!(Format::R16g16b16a16Unorm as u32 == dxgi::DXGI_FORMAT_R16G16B16A16_UNORM.0 as u32);
+const _: () =
+    assert!(Format::R16g16b16a16Uint as u32 == dxgi::DXGI_FORMAT_R16G16B16A16_UINT.0 as u32);
+const _: () =
+    assert!(Format::R16g16b16a16Snorm as u32 == dxgi::DXGI_FORMAT_R16G16B16A16_SNORM.0 as u32);
+const _: () =
+    assert!(Format::R16g16b16a16Sint as u32 == dxgi::DXGI_FORMAT_R16G16B16A16_SINT.0 as u32);
+const _: () = assert!(Format::R32g32Typeless as u32 == dxgi::DXGI_FORMAT_R32G32_TYPELESS.0 as u32);
+const _: () = assert!(Format::R32g32Float as u32 == dxgi::DXGI_FORMAT_R32G32_FLOAT.0 as u32);
+const _: () = assert!(Format::R32g32Uint as u32 == dxgi::DXGI_FORMAT_R32G32_UINT.0 as u32);
+const _: () = assert!(Format::R32g32Sint as u32 == dxgi::DXGI_FORMAT_R32G32_SINT.0 as u32);
+const _: () =
+    assert!(Format::R32g8x24Typeless as u32 == dxgi::DXGI_FORMAT_R32G8X24_TYPELESS.0 as u32);
+const _: () =
+    assert!(Format::D32FloatS8x24Uint as u32 == dxgi::DXGI_FORMAT_D32_FLOAT_S8X24_UINT.0 as u32);
+const _: () = assert!(
+    Format::R32FloatX8x24Typeless as u32 == dxgi::DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS.0 as u32
+);
+const _: () = assert!(
+    Format::X32TypelessG8x24Uint as u32 == dxgi::DXGI_FORMAT_X32_TYPELESS_G8X24_UINT.0 as u32
+);
+const _: () =
+    assert!(Format::R10g10b10a2Typeless as u32 == dxgi::DXGI_FORMAT_R10G10B10A2_TYPELESS.0 as u32);
+const _: () =
+    assert!(Format::R10g10b10a2Unorm as u32 == dxgi::DXGI_FORMAT_R10G10B10A2_UNORM.0 as u32);
+const _: () =
+    assert!(Format::R10g10b10a2Uint as u32 == dxgi::DXGI_FORMAT_R10G10B10A2_UINT.0 as u32);
+const _: () = assert!(Format::R11g11b10Float as u32 == dxgi::DXGI_FORMAT_R11G11B10_FLOAT.0 as u32);
+const _: () =
+    assert!(Format::R8g8b8a8Typeless as u32 == dxgi::DXGI_FORMAT_R8G8B8A8_TYPELESS.0 as u32);
+const _: () = assert!(Format::R8g8b8a8Unorm as u32 == dxgi::DXGI_FORMAT_R8G8B8A8_UNORM.0 as u32);
+const _: () =
+    assert!(Format::R8g8b8a8UnormSrgb as u32 == dxgi::DXGI_FORMAT_R8G8B8A8_UNORM_SRGB.0 as u32);
+const _: () = assert!(Format::R8g8b8a8Uint as u32 == dxgi::DXGI_FORMAT_R8G8B8A8_UINT.0 as u32);
+const _: () = assert!(Format::R8g8b8a8Snorm as u32 == dxgi::DXGI_FORMAT_R8G8B8A8_SNORM.0 as u32);
+const _: () = assert!(Format::R8g8b8a8Sint as u32 == dxgi::DXGI_FORMAT_R8G8B8A8_SINT.0 as u32);
+const _: () = assert!(Format::R16g16Typeless as u32 == dxgi::DXGI_FORMAT_R16G16_TYPELESS.0 as u32);
+const _: () = assert!(Format::R16g16Float as u32 == dxgi::DXGI_FORMAT_R16G16_FLOAT.0 as u32);
+const _: () = assert!(Format::R16g16Unorm as u32 == dxgi::DXGI_FORMAT_R16G16_UNORM.0 as u32);
+const _: () = assert!(Format::R16g16Uint as u32 == dxgi::DXGI_FORMAT_R16G16_UINT.0 as u32);
+const _: () = assert!(Format::R16g16Snorm as u32 == dxgi::DXGI_FORMAT_R16G16_SNORM.0 as u32);
+const _: () = assert!(Format::R16g16Sint as u32 == dxgi::DXGI_FORMAT_R16G16_SINT.0 as u32);
+const _: () = assert!(Format::R32Typeless as u32 == dxgi::DXGI_FORMAT_R32_TYPELESS.0 as u32);
+const _: () = assert!(Format::D32Float as u32 == dxgi::DXGI_FORMAT_D32_FLOAT.0 as u32);
+const _: () = assert!(Format::R32Float as u32 == dxgi::DXGI_FORMAT_R32_FLOAT.0 as u32);
+const _: () = assert!(Format::R32Uint as u32 == dxgi::DXGI_FORMAT_R32_UINT.0 as u32);
+const _: () = assert!(Format::R32Sint as u32 == dxgi::DXGI_FORMAT_R32_SINT.0 as u32);
+const _: () = assert!(Format::R24g8Typeless as u32 == dxgi::DXGI_FORMAT_R24G8_TYPELESS.0 as u32);
+const _: () =
+    assert!(Format::D24UnormS8Uint as u32 == dxgi::DXGI_FORMAT_D24_UNORM_S8_UINT.0 as u32);
+const _: () =
+    assert!(Format::R24UnormX8Typeless as u32 == dxgi::DXGI_FORMAT_R24_UNORM_X8_TYPELESS.0 as u32);
+const _: () =
+    assert!(Format::X24TypelessG8Uint as u32 == dxgi::DXGI_FORMAT_X24_TYPELESS_G8_UINT.0 as u32);
+const _: () = assert!(Format::R8g8Typeless as u32 == dxgi::DXGI_FORMAT_R8G8_TYPELESS.0 as u32);
+const _: () = assert!(Format::R8g8Unorm as u32 == dxgi::DXGI_FORMAT_R8G8_UNORM.0 as u32);
+const _: () = assert!(Format::R8g8Uint as u32 == dxgi::DXGI_FORMAT_R8G8_UINT.0 as u32);
+const _: () = assert!(Format::R8g8Snorm as u32 == dxgi::DXGI_FORMAT_R8G8_SNORM.0 as u32);
+const _: () = assert!(Format::R8g8Sint as u32 == dxgi::DXGI_FORMAT_R8G8_SINT.0 as u32);
+const _: () = assert!(Format::R16Typeless as u32 == dxgi::DXGI_FORMAT_R16_TYPELESS.0 as u32);
+const _: () = assert!(Format::R16Float as u32 == dxgi::DXGI_FORMAT_R16_FLOAT.0 as u32);
+const _: () = assert!(Format::D16Unorm as u32 == dxgi::DXGI_FORMAT_D16_UNORM.0 as u32);
+const _: () = assert!(Format::R16Unorm as u32 == dxgi::DXGI_FORMAT_R16_UNORM.0 as u32);
+const _: () = assert!(Format::R16Uint as u32 == dxgi::DXGI_FORMAT_R16_UINT.0 as u32);
+const _: () = assert!(Format::R16Snorm as u32 == dxgi::DXGI_FORMAT_R16_SNORM.0 as u32);
+const _: () = assert!(Format::R16Sint as u32 == dxgi::DXGI_FORMAT_R16_SINT.0 as u32);
+const _: () = assert!(Format::R8Typeless as u32 == dxgi::DXGI_FORMAT_R8_TYPELESS.0 as u32);
+const _: () = assert!(Format::R8Unorm as u32 == dxgi::DXGI_FORMAT_R8_UNORM.0 as u32);
+const _: () = assert!(Format::R8Uint as u32 == dxgi::DXGI_FORMAT_R8_UINT.0 as u32);
+const _: () = assert!(Format::R8Snorm as u32 == dxgi::DXGI_FORMAT_R8_SNORM.0 as u32);
+const _: () = assert!(Format::R8Sint as u32 == dxgi::DXGI_FORMAT_R8_SINT.0 as u32);
+const _: () = assert!(Format::A8Unorm as u32 == dxgi::DXGI_FORMAT_A8_UNORM.0 as u32);
+const _: () = assert!(Format::R1Unorm as u32 == dxgi::DXGI_FORMAT_R1_UNORM.0 as u32);
+const _: () =
+    assert!(Format::R9g9b9e5Sharedexp as u32 == dxgi::DXGI_FORMAT_R9G9B9E5_SHAREDEXP.0 as u32);
+const _: () = assert!(Format::R8g8B8g8Unorm as u32 == dxgi::DXGI_FORMAT_R8G8_B8G8_UNORM.0 as u32);
+const _: () = assert!(Format::G8r8G8b8Unorm as u32 == dxgi::DXGI_FORMAT_G8R8_G8B8_UNORM.0 as u32);
+const _: () = assert!(Format::Bc1Typeless as u32 == dxgi::DXGI_FORMAT_BC1_TYPELESS.0 as u32);
+const _: () = assert!(Format::Bc1Unorm as u32 == dxgi::DXGI_FORMAT_BC1_UNORM.0 as u32);
+const _: () = assert!(Format::Bc1UnormSrgb as u32 == dxgi::DXGI_FORMAT_BC1_UNORM_SRGB.0 as u32);
+const _: () = assert!(Format::Bc2Typeless as u32 == dxgi::DXGI_FORMAT_BC2_TYPELESS.0 as u32);
+const _: () = assert!(Format::Bc2Unorm as u32 == dxgi::DXGI_FORMAT_BC2_UNORM.0 as u32);
+const _: () = assert!(Format::Bc2UnormSrgb as u32 == dxgi::DXGI_FORMAT_BC2_UNORM_SRGB.0 as u32);
+const _: () = assert!(Format::Bc3Typeless as u32 == dxgi::DXGI_FORMAT_BC3_TYPELESS.0 as u32);
+const _: () = assert!(Format::Bc3Unorm as u32 == dxgi::DXGI_FORMAT_BC3_UNORM.0 as u32);
+const _: () = assert!(Format::Bc3UnormSrgb as u32 == dxgi::DXGI_FORMAT_BC3_UNORM_SRGB.0 as u32);
+const _: () = assert!(Format::Bc4Typeless as u32 == dxgi::DXGI_FORMAT_BC4_TYPELESS.0 as u32);
+const _: () = assert!(Format::Bc4Unorm as u32 == dxgi::DXGI_FORMAT_BC4_UNORM.0 as u32);
+const _: () = assert!(Format::Bc4Snorm as u32 == dxgi::DXGI_FORMAT_BC4_SNORM.0 as u32);
+const _: () = assert!(Format::Bc5Typeless as u32 == dxgi::DXGI_FORMAT_BC5_TYPELESS.0 as u32);
+const _: () = assert!(Format::Bc5Unorm as u32 == dxgi::DXGI_FORMAT_BC5_UNORM.0 as u32);
+const _: () = assert!(Format::Bc5Snorm as u32 == dxgi::DXGI_FORMAT_BC5_SNORM.0 as u32);
+const _: () = assert!(Format::B5g6r5Unorm as u32 == dxgi::DXGI_FORMAT_B5G6R5_UNORM.0 as u32);
+const _: () = assert!(Format::B5g5r5a1Unorm as u32 == dxgi::DXGI_FORMAT_B5G5R5A1_UNORM.0 as u32);
+const _: () = assert!(Format::B8g8r8a8Unorm as u32 == dxgi::DXGI_FORMAT_B8G8R8A8_UNORM.0 as u32);
+const _: () = assert!(Format::B8g8r8x8Unorm as u32 == dxgi::DXGI_FORMAT_B8G8R8X8_UNORM.0 as u32);
+const _: () = assert!(
+    Format::R10g10b10XrBiasA2Unorm as u32 == dxgi::DXGI_FORMAT_R10G10B10_XR_BIAS_A2_UNORM.0 as u32
+);
+const _: () =
+    assert!(Format::B8g8r8a8Typeless as u32 == dxgi::DXGI_FORMAT_B8G8R8A8_TYPELESS.0 as u32);
+const _: () =
+    assert!(Format::B8g8r8a8UnormSrgb as u32 == dxgi::DXGI_FORMAT_B8G8R8A8_UNORM_SRGB.0 as u32);
+const _: () =
+    assert!(Format::B8g8r8x8Typeless as u32 == dxgi::DXGI_FORMAT_B8G8R8X8_TYPELESS.0 as u32);
+const _: () =
+    assert!(Format::B8g8r8x8UnormSrgb as u32 == dxgi::DXGI_FORMAT_B8G8R8X8_UNORM_SRGB.0 as u32);
+const _: () = assert!(Format::Bc6hTypeless as u32 == dxgi::DXGI_FORMAT_BC6H_TYPELESS.0 as u32);
+const _: () = assert!(Format::Bc6hUf16 as u32 == dxgi::DXGI_FORMAT_BC6H_UF16.0 as u32);
+const _: () = assert!(Format::Bc6hSf16 as u32 == dxgi::DXGI_FORMAT_BC6H_SF16.0 as u32);
+const _: () = assert!(Format::Bc7Typeless as u32 == dxgi::DXGI_FORMAT_BC7_TYPELESS.0 as u32);
+const _: () = assert!(Format::Bc7Unorm as u32 == dxgi::DXGI_FORMAT_BC7_UNORM.0 as u32);
+const _: () = assert!(Format::Bc7UnormSrgb as u32 == dxgi::DXGI_FORMAT_BC7_UNORM_SRGB.0 as u32);
+const _: () = assert!(Format::Ayuv as u32 == dxgi::DXGI_FORMAT_AYUV.0 as u32);
+const _: () = assert!(Format::Y410 as u32 == dxgi::DXGI_FORMAT_Y410.0 as u32);
+const _: () = assert!(Format::Y416 as u32 == dxgi::DXGI_FORMAT_Y416.0 as u32);
+const _: () = assert!(Format::Nv12 as u32 == dxgi::DXGI_FORMAT_NV12.0 as u32);
+const _: () = assert!(Format::P010 as u32 == dxgi::DXGI_FORMAT_P010.0 as u32);
+const _: () = assert!(Format::P016 as u32 == dxgi::DXGI_FORMAT_P016.0 as u32);
+const _: () = assert!(Format::_420Opaque as u32 == dxgi::DXGI_FORMAT_420_OPAQUE.0 as u32);
+const _: () = assert!(Format::Yuy2 as u32 == dxgi::DXGI_FORMAT_YUY2.0 as u32);
+const _: () = assert!(Format::Y210 as u32 == dxgi::DXGI_FORMAT_Y210.0 as u32);
+const _: () = assert!(Format::Y216 as u32 == dxgi::DXGI_FORMAT_Y216.0 as u32);
+const _: () = assert!(Format::Nv11 as u32 == dxgi::DXGI_FORMAT_NV11.0 as u32);
+const _: () = assert!(Format::Ai44 as u32 == dxgi::DXGI_FORMAT_AI44.0 as u32);
+const _: () = assert!(Format::Ia44 as u32 == dxgi::DXGI_FORMAT_IA44.0 as u32);
+const _: () = assert!(Format::P8 as u32 == dxgi::DXGI_FORMAT_P8.0 as u32);
+const _: () = assert!(Format::A8p8 as u32 == dxgi::DXGI_FORMAT_A8P8.0 as u32);
+const _: () = assert!(Format::B4g4r4a4Unorm as u32 == dxgi::DXGI_FORMAT_B4G4R4A4_UNORM.0 as u32);
+const _: () = assert!(Format::P208 as u32 == dxgi::DXGI_FORMAT_P208.0 as u32);
+const _: () = assert!(Format::V208 as u32 == dxgi::DXGI_FORMAT_V208.0 as u32);
+const _: () = assert!(Format::V408 as u32 == dxgi::DXGI_FORMAT_V408.0 as u32);
+const _: () = assert!(
+    Format::SamplerFeedbackMinMipOpaque as u32
+        == dxgi::DXGI_FORMAT_SAMPLER_FEEDBACK_MIN_MIP_OPAQUE.0 as u32
+);
+const _: () = assert!(
+    Format::SamplerFeedbackMipRegionUsedOpaque as u32
+        == dxgi::DXGI_FORMAT_SAMPLER_FEEDBACK_MIP_REGION_USED_OPAQUE.0 as u32
+);
+const _: () = assert!(Format::A4b4g4r4Unorm as u32 == dxgi::DXGI_FORMAT_A4B4G4R4_UNORM.0 as u32);
+
 // End assertion block
 
 type ShaderId = [u8; D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES as usize];
@@ -288,6 +450,10 @@ pub(crate) struct Dx12Backend {
     render_target_heap: Option<ID3D12DescriptorHeap>,
     /// Amount of used bytes on the descriptor heap
     render_target_heap_size: u64,
+    /// Descriptor heap for depth stencil textures
+    depth_stencil_heap: Option<ID3D12DescriptorHeap>,
+    /// Amount of used bytes on the descriptor heap
+    depth_stencil_heap_size: u64,
     query_heap: Option<ID3D12QueryHeap>,
     query_buffer: Option<ID3D12Resource2>,
     /// If there is a window, the back buffer of the current frame
@@ -637,8 +803,7 @@ impl Dx12Backend {
             } else {
                 let desc = D3D12_DESCRIPTOR_HEAP_DESC {
                     Type: D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
-                    // TODO More than 2
-                    NumDescriptors: RENDER_TARGETS,
+                    NumDescriptors: 256,
                     ..Default::default()
                 };
                 let heap = self
@@ -651,6 +816,34 @@ impl Dx12Backend {
             let offset = self.render_target_heap_size;
             self.render_target_heap_size += u64::from(
                 self.device.GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV),
+            );
+            let mut cpu = heap.GetCPUDescriptorHandleForHeapStart();
+            cpu.ptr += offset as usize;
+            Ok(cpu)
+        }
+    }
+
+    /// Creates a descriptor heap if there is not already one
+    fn create_depth_stencil_view(&mut self) -> Result<D3D12_CPU_DESCRIPTOR_HANDLE> {
+        unsafe {
+            let heap = if let Some(h) = &self.depth_stencil_heap {
+                h
+            } else {
+                let desc = D3D12_DESCRIPTOR_HEAP_DESC {
+                    Type: D3D12_DESCRIPTOR_HEAP_TYPE_DSV,
+                    NumDescriptors: 256,
+                    ..Default::default()
+                };
+                let heap = self
+                    .device
+                    .CreateDescriptorHeap(&desc)
+                    .h_err(self, "Creating depth stencil descriptor heap")?;
+                self.depth_stencil_heap = Some(heap);
+                self.depth_stencil_heap.as_ref().unwrap()
+            };
+            let offset = self.depth_stencil_heap_size;
+            self.depth_stencil_heap_size += u64::from(
+                self.device.GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV),
             );
             let mut cpu = heap.GetCPUDescriptorHandleForHeapStart();
             cpu.ptr += offset as usize;
@@ -1144,7 +1337,6 @@ impl Dx12Window {
                     D3D12_RESOURCE_STATE_PRESENT,
                     D3D12_RESOURCE_STATE_RENDER_TARGET,
                 ));
-                cmds.OMSetRenderTargets(1, Some(&view), false, None);
                 cmds.ClearRenderTargetView(view, &[0.0; 4], None);
                 resource_barrier!(cmds(
                     &buffer,
@@ -1340,6 +1532,8 @@ impl Backend for Dx12Backend {
                 descriptor_heap_size: 0,
                 render_target_heap: None,
                 render_target_heap_size: 0,
+                depth_stencil_heap: None,
+                depth_stencil_heap_size: 0,
                 query_heap: None,
                 query_buffer: None,
                 window_buffer: None,
@@ -1881,6 +2075,147 @@ impl Backend for Dx12Backend {
 
         self.buffers.insert(id, buffer);
         Ok(())
+    }
+
+    fn create_texture(&mut self, id: IdentifierIdx, dir: &Directive) -> Result<()> {
+        let Directive::Texture {
+            name,
+            format,
+            width,
+            height,
+            depth,
+            array,
+            mip_levels,
+            sample_desc,
+            clear_color,
+            config,
+            ..
+        } = dir
+        else {
+            unreachable!()
+        };
+        let format = dxgi::DXGI_FORMAT(*format as i32);
+        let sample_desc = sample_desc.clone().unwrap_or_default();
+
+        let dim = if depth.is_some() {
+            D3D12_RESOURCE_DIMENSION_TEXTURE3D
+        } else if height.is_some() {
+            D3D12_RESOURCE_DIMENSION_TEXTURE2D
+        } else {
+            D3D12_RESOURCE_DIMENSION_TEXTURE1D
+        };
+
+        let texture_desc = D3D12_RESOURCE_DESC {
+            Dimension: dim,
+            Alignment: 0,
+            Width: *width,
+            Height: height.unwrap_or(1).try_into().expect("Texture height is too large"),
+            DepthOrArraySize: depth
+                .or(*array)
+                .unwrap_or(1)
+                .try_into()
+                .expect("Texture depth or array is too large"),
+            MipLevels: mip_levels.unwrap_or(1),
+            Format: format,
+            SampleDesc: dxgi::DXGI_SAMPLE_DESC {
+                Count: sample_desc.count,
+                Quality: sample_desc.quality,
+            },
+            Layout: D3D12_TEXTURE_LAYOUT_UNKNOWN,
+            Flags: D3D12_RESOURCE_FLAGS(config.bits() as i32),
+            ..Default::default()
+        };
+        let heap_props =
+            D3D12_HEAP_PROPERTIES { Type: D3D12_HEAP_TYPE_DEFAULT, ..Default::default() };
+
+        unsafe {
+            let mut texture = None;
+            self.device
+                .CreateCommittedResource(
+                    &heap_props,
+                    D3D12_HEAP_FLAG_NONE,
+                    &texture_desc,
+                    D3D12_RESOURCE_STATE_COMMON,
+                    clear_color.clone().map(|c| &match c {
+                        ClearColor::Color(c) => D3D12_CLEAR_VALUE {
+                            Format: format,
+                            Anonymous: D3D12_CLEAR_VALUE_0 { Color: c },
+                        },
+                        ClearColor::DepthStencil { depth, stencil } => D3D12_CLEAR_VALUE {
+                            Format: format,
+                            Anonymous: D3D12_CLEAR_VALUE_0 {
+                                DepthStencil: D3D12_DEPTH_STENCIL_VALUE {
+                                    Depth: depth,
+                                    Stencil: stencil,
+                                },
+                            },
+                        },
+                    } as *const _),
+                    &mut texture,
+                )
+                .with_h_err(self, || format!("Creating texture '{name}'"))?;
+
+            let texture: ID3D12Resource2 =
+                texture.ok_or_else(|| miette!("Failed to create texture '{name}'"))?;
+            texture
+                .SetName(&HSTRING::from(&name.content))
+                .with_h_err(self, || format!("Set texture name '{name}'"))?;
+
+            match clear_color {
+                Some(ClearColor::Color(c)) => {
+                    // Create temporary view
+                    let orig_size = self.render_target_heap_size;
+                    let view = self.create_render_target_view()?;
+                    self.device.CreateRenderTargetView(&texture, None, view);
+                    self.render_target_heap_size = orig_size;
+
+                    let cmds = self.command_list(&format!("Clear texture"))?;
+                    resource_barrier!(cmds(
+                        &texture,
+                        D3D12_RESOURCE_STATE_PRESENT,
+                        D3D12_RESOURCE_STATE_RENDER_TARGET,
+                    ));
+                    cmds.ClearRenderTargetView(view, &c, None);
+                    resource_barrier!(cmds(
+                        &texture,
+                        D3D12_RESOURCE_STATE_RENDER_TARGET,
+                        D3D12_RESOURCE_STATE_PRESENT,
+                    ));
+                    cmds.run(self)?;
+                }
+                Some(ClearColor::DepthStencil { depth, stencil }) => {
+                    // Create temporary view
+                    let orig_size = self.depth_stencil_heap_size;
+                    let view = self.create_depth_stencil_view()?;
+                    self.device.CreateDepthStencilView(&texture, None, view);
+                    self.depth_stencil_heap_size = orig_size;
+
+                    let cmds = self.command_list(&format!("Clear texture"))?;
+                    resource_barrier!(cmds(
+                        &texture,
+                        D3D12_RESOURCE_STATE_PRESENT,
+                        D3D12_RESOURCE_STATE_DEPTH_WRITE,
+                    ));
+                    cmds.ClearDepthStencilView(
+                        view,
+                        D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL,
+                        *depth,
+                        *stencil,
+                        None,
+                    );
+                    resource_barrier!(cmds(
+                        &texture,
+                        D3D12_RESOURCE_STATE_DEPTH_WRITE,
+                        D3D12_RESOURCE_STATE_PRESENT,
+                    ));
+                    cmds.run(self)?;
+                }
+                None => {}
+            }
+
+            self.textures.insert(id, texture);
+            Ok(())
+        }
     }
 
     fn create_root_sig(&mut self, id: IdentifierIdx, dir: &Directive) -> Result<()> {
@@ -2806,9 +3141,8 @@ impl Backend for Dx12Backend {
                     pipe_root_sig = pipeline.root_sig;
 
                     if is_graphics {
-                        /*let win =
-                            self.window_buffer.as_ref().expect("Only supported with --window");
-                        // TODO Assumes render target is window
+                        /*
+                        // TODO
                         let buffer_desc = win.back_buffer.GetDesc1();
                         cmds.RSSetViewports(&[D3D12_VIEWPORT {
                             Width: buffer_desc.Width as f32,
