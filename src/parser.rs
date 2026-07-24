@@ -1175,20 +1175,32 @@ fn buffer(s: &mut Input) -> Result<Directive> {
     .parse_next(s)
 }
 
+fn sample_desc(s: &mut Input) -> Result<SampleDesc> {
+    seq! {SampleDesc {
+        _: space,
+        count: uint,
+        _: space,
+        quality: uint,
+        _: line_end,
+    }}
+    .parse_next(s)
+}
+
 fn texture(s: &mut Input) -> Result<Directive> {
+    let mut name = Default::default();
     let mut format_field = Default::default();
     let mut width = Default::default();
     let mut height = Default::default();
     let mut depth = Default::default();
     let mut array = Default::default();
     let mut mip_levels = Default::default();
-    let mut sample_desc = Default::default();
+    let mut sample_desc_field = Default::default();
     let mut clear: (Option<Vec<_>>, _) = Default::default();
     let mut config = Default::default();
 
     seq! {Directive::Texture {
         _: space,
-        name: identifier,
+        name: identifier.map(|i| { name = i.clone(); i }),
         _: line_end,
         _: repeat::<_, _, (), _, _>(0.., dispatch_id! {id;
             "FORMAT" => no_dup(&mut format_field, id.clone(), delimited(space, format, line_end)),
@@ -1197,25 +1209,73 @@ fn texture(s: &mut Input) -> Result<Directive> {
             "DEPTH" => no_dup(&mut depth, id.clone(), delimited(space, uint, line_end)),
             "ARRAY" => no_dup(&mut array, id.clone(), delimited(space, uint, line_end)),
             "MIP_LEVELS" => no_dup(&mut mip_levels, id.clone(), delimited(space, uint, line_end)),
-            "SAMPLE_DESC" => no_dup(&mut sample_desc, id.clone(), seq! {SampleDesc {
-                _: space,
-                count: uint,
-                _: space,
-                quality: uint,
-                _: line_end,
-            }}),
-            "CLEAR" => no_dup(&mut clear, id.clone(), repeat(2..4, preceded(space, number::<f32>))),
+            "SAMPLE_DESC" => no_dup(&mut sample_desc_field, id.clone(), sample_desc),
+            "CLEAR" => no_dup(&mut clear, id.clone(), repeat(2..=4, preceded(space, number::<f32>))),
             "CONFIG" => flags(&mut config, id),
             _ => fail,
         }),
-        format: empty.value(format_field.0.ok_or_else(|| panic!("TODO"))?),
-        width: empty.value(width.0.ok_or_else(|| panic!("TODO"))?),
+        _: {
+            // Checks
+            if format_field.0.is_none() {
+                return Err(ErrMode::Backtrack(ParserError::Missing { span: name.span, id: "FORMAT" }));
+            }
+            if width.0.is_none() {
+                return Err(ErrMode::Backtrack(ParserError::Missing { span: name.span, id: "WIDTH" }));
+            }
+            if height.0.is_none() && depth.0.is_some() {
+                return Err(ErrMode::Backtrack(ParserError::InvalidSize {
+                    identifier: depth.1.clone().unwrap(),
+                    explanation: "containing DEPTH without HEIGHT",
+                    help: "Add HEIGHT for a valid 3D texture",
+                }));
+            }
+            if depth.0.is_some() && array.0.is_some() {
+                return Err(ErrMode::Backtrack(ParserError::InvalidSize {
+                    identifier: array.1.clone().unwrap(),
+                    explanation: "containing DEPTH and ARRAY",
+                    help: "Remove one of DEPTH or ARRAY, only 1D or 2D textures can be arrays",
+                }));
+            }
+        },
+        format: empty.value(format_field.0.unwrap()),
+        width: empty.value(width.0.unwrap()),
         height: empty.value(height.0),
-        depth: empty.value(depth.0), // TODO Ensure depth is not specified when height is not
-        array: empty.value(array.0), // TODO Ensure array is not specified when depth is
+        depth: empty.value(depth.0),
+        array: empty.value(array.0),
         mip_levels: empty.value(mip_levels.0),
-        sample_desc: empty.value(sample_desc.0.take()),
-        clear_color: empty.value(panic!("TODO")),
+        sample_desc: empty.value(sample_desc_field.0.take()),
+        clear_color: {
+            if let Some(clear_val) = &clear.0 {
+                let config: TextureConfig = config.0.unwrap_or_default();
+                if config.contains(TextureConfig::DEPTH_STENCIL) {
+                    if clear_val.len() != 2 {
+                        return Err(ErrMode::Backtrack(ParserError::InvalidClear {
+                            identifier: clear.1.clone().unwrap(),
+                            expected: "`CLEAR <depth> <stencil>`",
+                            help: "Remove CLEAR or specify depth and stencil values",
+                        }));
+                    }
+                    empty.value(Some(ClearColor::DepthStencil { depth: clear_val[0], stencil: clear_val[1] as u8 }))
+                } else if config.contains(TextureConfig::RENDERTARGET) {
+                    if clear_val.len() != 4 {
+                        return Err(ErrMode::Backtrack(ParserError::InvalidClear {
+                            identifier: clear.1.clone().unwrap(),
+                            expected: "`CLEAR <r> <g> <b> <a>`",
+                            help: "Remove CLEAR or specify a color value",
+                        }));
+                    }
+                    empty.value(Some(ClearColor::Color(clear_val.as_slice().try_into().unwrap())))
+                } else {
+                    return Err(ErrMode::Backtrack(ParserError::InvalidClear {
+                        identifier: clear.1.clone().unwrap(),
+                        expected: "no clear value",
+                        help: "Remove CLEAR or add one of `CONFIG rendertarget` or `CONFIG depth_stencil`",
+                    }));
+                }
+            } else {
+                empty.value(None)
+            }
+        },
         config: empty.value(config.0.unwrap_or_default()),
         _: line_end,
     }}
@@ -1545,6 +1605,10 @@ fn pipeline(s: &mut Input) -> Result<Directive> {
     let mut blend = Default::default();
     let mut depth_stencil_val = Default::default();
     let mut rasterizer_state = Default::default();
+    let mut render_target_formats = Default::default();
+    let mut depth_stencil_format = Default::default();
+    let mut sample_desc_field = Default::default();
+    let mut sample_mask = Default::default();
     let mut view_instancing = Vec::new();
     let mut view_instancing_config = Default::default();
     let mut config = Default::default();
@@ -1568,6 +1632,10 @@ fn pipeline(s: &mut Input) -> Result<Directive> {
                 "BLEND" => no_dup(&mut blend, id.clone(), blend_desc).map_err(inv_statement("BLEND content... END", id)),
                 "DEPTH_STENCIL" => no_dup(&mut depth_stencil_val, id.clone(), depth_stencil).map_err(inv_statement("DEPTH_STENCIL content... END", id)),
                 "RASTERIZER" => no_dup(&mut rasterizer_state, id.clone(), rasterizer).map_err(inv_statement("RASTERIZER content... END", id)),
+                "RENDER_TARGET_FORMATS" => no_dup(&mut render_target_formats, id.clone(), terminated(repeat(1..=8, preceded(space, format)), line_end)),
+                "DEPTH_STENCIL_FORMAT" => no_dup(&mut depth_stencil_format, id.clone(), delimited(space, format, line_end)),
+                "SAMPLE_DESC" => no_dup(&mut sample_desc_field, id.clone(), sample_desc),
+                "SAMPLE_MASK" => no_dup(&mut sample_mask, id.clone(), delimited(space, uint, line_end)),
                 "VIEW_INSTANCING" => view_instancing_location.map(|r| view_instancing.push(r)).map_err(inv_statement("VIEW_INSTANCING content... END", id)),
                 "VIEW_INSTANCING_CONFIG" => flags(&mut view_instancing_config, id),
                 "CONFIG" => flags(&mut config, id),
@@ -1578,6 +1646,10 @@ fn pipeline(s: &mut Input) -> Result<Directive> {
         blend: empty.value(blend.0.take()),
         depth_stencil: empty.value(depth_stencil_val.0.take()),
         rasterizer_state: empty.value(rasterizer_state.0.take()),
+        render_target_formats: empty.value(render_target_formats.0.take().unwrap_or_default()),
+        depth_stencil_format: empty.value(depth_stencil_format.0.take()),
+        sample_desc: empty.value(sample_desc_field.0.take()),
+        sample_mask: empty.value(sample_mask.0.take()),
         view_instancing: empty.value(mem::take(&mut view_instancing)),
         view_instancing_config: empty.value(view_instancing_config.0),
         config: empty.value(config.0),

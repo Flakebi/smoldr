@@ -52,9 +52,10 @@ BUFFER outbuf DATA_TYPE float SIZE 32 FILL 0
 # Texture using window size if there is a window or 64x64 default size
 # TODO Create sampler for shader input
 TEXTURE img
-  FORMAT R8B8G8A8
-  SIZE 64 64 1
-  FILL 0 0 0 0
+  FORMAT R8B8G8A8_TYPELESS
+  WIDTH 64
+  HEIGHT 64
+  CLEAR 0 0 0 0
   CONFIG rendertarget
 END
 
@@ -66,7 +67,7 @@ END
 PIPELINE meshpipe MESH
   MESH_SHADER meshobj
   PIXEL_SHADER psobj
-  # FORMAT R8B8G8A8
+  RENDER_TARGET_FORMATS R8B8G8A8_TYPELESS
   ROOT default
 END
 

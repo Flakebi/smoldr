@@ -540,6 +540,46 @@ Omitting values leaves them at their default.
 * `bias_slope` is a 32-bit float, see the [D3D12 Depth Bias documentation](https://learn.microsoft.com/en-us/windows/win32/direct3d11/d3d10-graphics-programming-guide-output-merger-stage-depth-bias)
 * `sample_count` is one of `0`, `1`, `4`, `8` or `16`, defaulting to `0`, meaning disabled
 
+###### RENDER_TARGET_FORMATS
+
+```
+RENDER_TARGET_FORMATS <format> [<format>] […]
+```
+
+Specify the formats of up to 8 render targets.
+
+* `format` is one of the values for [`DXGI_FORMAT`](https://learn.microsoft.com/en-us/windows/win32/api/dxgiformat/ne-dxgiformat-dxgi_format) like `R8G8B8A8_TYPELESS`.
+
+###### DEPTH_STENCIL_FORMAT
+
+```
+DEPTH_STENCIL_FORMAT <format>
+```
+
+Specify the format of the depth-stencil texture.
+
+* `format` is one of the values for [`DXGI_FORMAT`](https://learn.microsoft.com/en-us/windows/win32/api/dxgiformat/ne-dxgiformat-dxgi_format) like `DXGI_FORMAT_D32_FLOAT`.
+
+###### SAMPLE_DESC
+
+```
+SAMPLE_DESC <count> <quality>
+```
+
+Specify the sampling of the rendertarget texture.
+
+* `count` and `quality` specify the sampling, defaulting to count 1 and quality 0.
+
+###### SAMPLE_MASK
+
+```
+SAMPLE_MASK <mask>
+```
+
+Mask the rendered samples.
+
+* `mask` is a 32-bit mask.
+
 ###### VIEW_INSTANCING
 
 ```

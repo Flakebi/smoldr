@@ -116,6 +116,13 @@ pub(crate) enum ParserError {
         name: &'static str,
         expected: &'static [&'static str],
     },
+    #[error("Did not find required {id}")]
+    #[diagnostic(code(smoldr::parser::Missing), help("Add {id} to the statement"))]
+    Missing {
+        #[label = "Missing in this statement"]
+        span: Range<usize>,
+        id: &'static str,
+    },
     #[error("Failed to parse time")]
     #[diagnostic(
         code(smoldr::parser::ParseDuration),
@@ -163,6 +170,22 @@ pub(crate) enum ParserError {
     DuplicateRenderTarget {
         #[label("RENDER_TARGET specified here")]
         identifier: Identifier,
+    },
+    #[error("Invalid size {explanation}")]
+    #[diagnostic(code(smoldr::parser::InvalidSize), help("{help}"))]
+    InvalidSize {
+        #[label = "Incorrect here"]
+        identifier: Identifier,
+        explanation: &'static str,
+        help: &'static str,
+    },
+    #[error("Invalid CLEAR value specified, expected {expected}")]
+    #[diagnostic(code(smoldr::parser::InvalidClear), help("{help}"))]
+    InvalidClear {
+        #[label = "Incorrect CLEAR statement here"]
+        identifier: Identifier,
+        expected: &'static str,
+        help: &'static str,
     },
     #[error("Data inconsistent with size")]
     #[diagnostic(code(smoldr::parser::RawSizeMismatch))]

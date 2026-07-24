@@ -977,6 +977,14 @@ enum Directive {
         /// Only for graphics pipelines
         rasterizer_state: Option<RasterizerState>,
         /// Only for graphics pipelines
+        render_target_formats: Vec<Format>,
+        /// Only for graphics pipelines
+        depth_stencil_format: Option<Format>,
+        /// Only for graphics pipelines
+        sample_desc: Option<SampleDesc>,
+        /// Only for graphics pipelines
+        sample_mask: Option<u32>,
+        /// Only for graphics pipelines
         view_instancing: Vec<ViewInstancingLocation>,
         /// Only for graphics pipelines
         view_instancing_config: Option<ViewInstancingConfig>,

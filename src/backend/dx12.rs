@@ -2457,6 +2457,10 @@ impl Backend for Dx12Backend {
             blend,
             depth_stencil,
             rasterizer_state,
+            render_target_formats,
+            depth_stencil_format,
+            sample_desc,
+            sample_mask,
             view_instancing,
             view_instancing_config,
             config,
@@ -2470,6 +2474,7 @@ impl Backend for Dx12Backend {
         let blend = blend.clone().unwrap_or_default();
         let depth_stencil = depth_stencil.clone().unwrap_or_default();
         let rasterizer_state = rasterizer_state.clone().unwrap_or_default();
+        let sample_desc = sample_desc.clone().unwrap_or_default();
         let config = config.unwrap_or_default();
 
         unsafe {
@@ -2636,8 +2641,9 @@ impl Backend for Dx12Backend {
                 },
                 dsv_format: Subobject {
                     typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_DEPTH_STENCIL_FORMAT,
-                    // TODO
-                    obj: dxgi::DXGI_FORMAT_UNKNOWN,
+                    obj: depth_stencil_format
+                        .map(|f| dxgi::DXGI_FORMAT(f as i32))
+                        .unwrap_or_default(),
                 },
                 rasterizer_state: Subobject {
                     typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_RASTERIZER,
@@ -2646,30 +2652,30 @@ impl Backend for Dx12Backend {
                 rtv_formats: Subobject {
                     typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_RENDER_TARGET_FORMATS,
                     obj: D3D12_RT_FORMAT_ARRAY {
-                        RTFormats: [
-                            // TODO
-                            // self.window_buffer.as_ref().unwrap().back_buffer.GetDesc().Format,
-                            Default::default(),
-                            Default::default(),
-                            Default::default(),
-                            Default::default(),
-                            Default::default(),
-                            Default::default(),
-                            Default::default(),
-                            Default::default(),
-                        ],
-                        NumRenderTargets: 1,
+                        RTFormats: {
+                            let mut formats = render_target_formats
+                                .iter()
+                                .map(|f| dxgi::DXGI_FORMAT(*f as i32))
+                                .collect::<Vec<_>>();
+                            formats.resize(8, Default::default());
+                            formats.try_into().unwrap()
+                        },
+                        NumRenderTargets: render_target_formats
+                            .len()
+                            .try_into()
+                            .expect("Too many render target formats"),
                     },
                 },
                 sample_desc: Subobject {
                     typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_SAMPLE_DESC,
-                    // TODO
-                    obj: dxgi::DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },
+                    obj: dxgi::DXGI_SAMPLE_DESC {
+                        Count: sample_desc.count,
+                        Quality: sample_desc.quality,
+                    },
                 },
                 sample_mask: Subobject {
                     typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_SAMPLE_MASK,
-                    // TODO
-                    obj: u32::MAX,
+                    obj: sample_mask.unwrap_or(u32::MAX),
                 },
                 cached_pso: Subobject {
                     typ: D3D12_PIPELINE_STATE_SUBOBJECT_TYPE_CACHED_PSO,
