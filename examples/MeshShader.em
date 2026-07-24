@@ -52,7 +52,7 @@ BUFFER outbuf DATA_TYPE float SIZE 32 FILL 0
 # Texture using window size if there is a window or 64x64 default size
 # TODO Create sampler for shader input
 TEXTURE img
-  FORMAT R8G8B8A8_TYPELESS
+  FORMAT R8G8B8A8_UNORM
   WIDTH 64
   HEIGHT 64
   CLEAR 0 0 0 0
@@ -67,7 +67,7 @@ END
 PIPELINE meshpipe MESH
   MESH_SHADER meshobj
   PIXEL_SHADER psobj
-  RENDER_TARGET_FORMATS R8G8B8A8_TYPELESS
+  RENDER_TARGET_FORMATS R8G8B8A8_UNORM
   # Disable depth
   DEPTH_STENCIL
   END

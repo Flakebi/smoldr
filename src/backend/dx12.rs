@@ -2131,27 +2131,28 @@ impl Backend for Dx12Backend {
 
         unsafe {
             let mut texture = None;
+            let dx_clear_color = clear_color.as_ref().map(|c| match c {
+                ClearColor::Color(c) => D3D12_CLEAR_VALUE {
+                    Format: format,
+                    Anonymous: D3D12_CLEAR_VALUE_0 { Color: *c },
+                },
+                ClearColor::DepthStencil { depth, stencil } => D3D12_CLEAR_VALUE {
+                    Format: format,
+                    Anonymous: D3D12_CLEAR_VALUE_0 {
+                        DepthStencil: D3D12_DEPTH_STENCIL_VALUE {
+                            Depth: *depth,
+                            Stencil: *stencil,
+                        },
+                    },
+                },
+            });
             self.device
                 .CreateCommittedResource(
                     &heap_props,
                     D3D12_HEAP_FLAG_NONE,
                     &texture_desc,
                     D3D12_RESOURCE_STATE_COMMON,
-                    clear_color.clone().map(|c| &match c {
-                        ClearColor::Color(c) => D3D12_CLEAR_VALUE {
-                            Format: format,
-                            Anonymous: D3D12_CLEAR_VALUE_0 { Color: c },
-                        },
-                        ClearColor::DepthStencil { depth, stencil } => D3D12_CLEAR_VALUE {
-                            Format: format,
-                            Anonymous: D3D12_CLEAR_VALUE_0 {
-                                DepthStencil: D3D12_DEPTH_STENCIL_VALUE {
-                                    Depth: depth,
-                                    Stencil: stencil,
-                                },
-                            },
-                        },
-                    } as *const _),
+                    dx_clear_color.as_ref().map(|c| c as *const _),
                     &mut texture,
                 )
                 .with_h_err(self, || format!("Creating texture '{name}'"))?;
@@ -2173,14 +2174,14 @@ impl Backend for Dx12Backend {
                     let cmds = self.command_list(&format!("Clear texture"))?;
                     resource_barrier!(cmds(
                         &texture,
-                        D3D12_RESOURCE_STATE_PRESENT,
+                        D3D12_RESOURCE_STATE_COMMON,
                         D3D12_RESOURCE_STATE_RENDER_TARGET,
                     ));
                     cmds.ClearRenderTargetView(view, &c, None);
                     resource_barrier!(cmds(
                         &texture,
                         D3D12_RESOURCE_STATE_RENDER_TARGET,
-                        D3D12_RESOURCE_STATE_PRESENT,
+                        D3D12_RESOURCE_STATE_COMMON,
                     ));
                     cmds.run(self)?;
                 }
@@ -2194,7 +2195,7 @@ impl Backend for Dx12Backend {
                     let cmds = self.command_list(&format!("Clear texture"))?;
                     resource_barrier!(cmds(
                         &texture,
-                        D3D12_RESOURCE_STATE_PRESENT,
+                        D3D12_RESOURCE_STATE_COMMON,
                         D3D12_RESOURCE_STATE_DEPTH_WRITE,
                     ));
                     cmds.ClearDepthStencilView(
@@ -2207,7 +2208,7 @@ impl Backend for Dx12Backend {
                     resource_barrier!(cmds(
                         &texture,
                         D3D12_RESOURCE_STATE_DEPTH_WRITE,
-                        D3D12_RESOURCE_STATE_PRESENT,
+                        D3D12_RESOURCE_STATE_COMMON,
                     ));
                     cmds.run(self)?;
                 }
@@ -3186,8 +3187,8 @@ impl Backend for Dx12Backend {
                             for r in rendertargets {
                                 let buffer = &self.buffers[&self.graphics_views[r].1];
                                 resource_barrier!(cmds(
-                                    &buffer,
-                                    D3D12_RESOURCE_STATE_PRESENT,
+                                    buffer,
+                                    D3D12_RESOURCE_STATE_COMMON,
                                     D3D12_RESOURCE_STATE_RENDER_TARGET,
                                 ));
                             }
@@ -3386,10 +3387,10 @@ impl Backend for Dx12Backend {
                     let pipeline = &self.pipelines[&pipeline];
                     match pipeline.typ {
                         PipelineType::Compute => {
-                            cmds.Dispatch(dimensions.0[0], dimensions.0[1], dimensions.0[2])
+                            cmds.Dispatch(dimensions.0[0], dimensions.0[1], dimensions.0[2]);
                         }
                         PipelineType::Mesh => {
-                            cmds.DispatchMesh(dimensions.0[0], dimensions.0[1], dimensions.0[2])
+                            cmds.DispatchMesh(dimensions.0[0], dimensions.0[1], dimensions.0[2]);
                         }
                     }
                 }
@@ -3503,6 +3504,19 @@ impl Backend for Dx12Backend {
                 self.query_buffer.as_ref().unwrap(),
                 0,
             );
+
+            if is_graphics {
+                if let DispatchContent::Dispatch { rendertargets, .. } = content {
+                    for r in rendertargets {
+                        let buffer = &self.buffers[&self.graphics_views[r].1];
+                        resource_barrier!(cmds(
+                            buffer,
+                            D3D12_RESOURCE_STATE_RENDER_TARGET,
+                            D3D12_RESOURCE_STATE_COMMON,
+                        ));
+                    }
+                }
+            }
 
             cmds.run(self)?;
 

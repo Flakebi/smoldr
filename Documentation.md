@@ -548,7 +548,7 @@ RENDER_TARGET_FORMATS <format> [<format>…]
 
 Specify the formats of up to 8 render targets.
 
-* `format` is one of the values for [`DXGI_FORMAT`](https://learn.microsoft.com/en-us/windows/win32/api/dxgiformat/ne-dxgiformat-dxgi_format) like `R8G8B8A8_TYPELESS`.
+* `format` is one of the values for [`DXGI_FORMAT`](https://learn.microsoft.com/en-us/windows/win32/api/dxgiformat/ne-dxgiformat-dxgi_format) like `R8G8B8A8_UNORM`.
 
 ###### DEPTH_STENCIL_FORMAT
 
@@ -1017,7 +1017,7 @@ END
 Allocate a texture on the GPU, clearing its content with the given color.
 
 * `resource_identifier` is the identifier that can be used in later commands to reference the created resource.
-* `format` is one of the values for [`DXGI_FORMAT`](https://learn.microsoft.com/en-us/windows/win32/api/dxgiformat/ne-dxgiformat-dxgi_format) like `R8G8B8A8_TYPELESS`.
+* `format` is one of the values for [`DXGI_FORMAT`](https://learn.microsoft.com/en-us/windows/win32/api/dxgiformat/ne-dxgiformat-dxgi_format) like `R8G8B8A8_UNORM`.
 * `width`/`height`/`depth`/`array` is size of the texture. The specified sizes determine if a 1D, 2D or 3D texture (array) is created.
 * `levels` is the number of mip map levels in the texture, defaulting to 1.
 * `count` and `quality` specify the sampling, defaulting to count 1 and quality 0.
