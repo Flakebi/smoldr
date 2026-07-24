@@ -12,7 +12,7 @@ use std::fmt::Write;
 use thiserror::Error;
 
 use crate::parser::{Identifier, SpanObj};
-use crate::{DataType, IdentifierType, Value, Values};
+use crate::{DataType, IdentifierType, ShaderType, Value, Values, ViewType};
 
 fn comma_join<'a, T: ToString + 'a, I: IntoIterator<Item = &'a T>>(iter: I) -> String {
     iter.into_iter().map(ToString::to_string).collect::<Vec<_>>().join(", ")
@@ -186,6 +186,12 @@ pub(crate) enum ParserError {
         identifier: Identifier,
         expected: &'static str,
         help: &'static str,
+    },
+    #[error("All PIXELs in SAMPLE_POSITIONS must have the same length")]
+    #[diagnostic(code(smoldr::parser::InvalidSamplePositions))]
+    InvalidSamplePositions {
+        #[label = "Incorrect SAMPLE_POSITIONS statement here"]
+        identifier: Identifier,
     },
     #[error("Data inconsistent with size")]
     #[diagnostic(code(smoldr::parser::RawSizeMismatch))]
@@ -444,9 +450,36 @@ pub(crate) struct TooSmallExecuteIndirectStride {
 }
 
 #[derive(Diagnostic, Debug, Error)]
+#[error("{typ} is not a valid view type in this position")]
+#[diagnostic(code(smoldr::InvalidViewType))]
+#[allow(dead_code)]
+pub(crate) struct InvalidViewType {
+    pub(crate) typ: ViewType,
+}
+
+#[derive(Diagnostic, Debug, Error)]
+#[error("{typ} is not a valid shader type here{extra}")]
+#[diagnostic(code(smoldr::InvalidShaderType))]
+pub(crate) struct InvalidShaderType {
+    #[label("Shader specified here")]
+    pub(crate) declaration: Identifier,
+    pub(crate) typ: ShaderType,
+    pub(crate) extra: &'static str,
+}
+
+#[derive(Diagnostic, Debug, Error)]
+#[error("{property} is not a valid in this statement{extra}")]
+#[diagnostic(code(smoldr::InvalidProperty))]
+pub(crate) struct InvalidProperty {
+    #[label("In the statement here")]
+    pub(crate) statement: Identifier,
+    pub(crate) property: &'static str,
+    pub(crate) extra: &'static str,
+}
+
+#[derive(Diagnostic, Debug, Error)]
 #[error("Incorrect results in {} EXPECT statements", errors.len())]
 #[diagnostic(code(smoldr::Failure))]
-#[allow(dead_code)]
 pub(crate) struct Failure {
     #[related]
     pub(crate) errors: Vec<miette::Report>,
@@ -455,7 +488,6 @@ pub(crate) struct Failure {
 #[derive(Diagnostic, Debug, Error)]
 #[error("Aborting due to too many ({}) failed EXPECT statements", errors.len())]
 #[diagnostic(code(smoldr::Abort))]
-#[allow(dead_code)]
 pub(crate) struct Abort {
     #[related]
     pub(crate) errors: Vec<miette::Report>,

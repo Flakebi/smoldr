@@ -18,7 +18,7 @@ use std::{ptr, slice, str};
 use half::f16;
 use miette::{Report, Result, bail, miette};
 use tracing::{debug, error, info, trace, warn};
-use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WAIT_OBJECT_0, WPARAM};
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WAIT_OBJECT_0, WPARAM};
 use windows::Win32::Graphics::Direct3D;
 use windows::Win32::Graphics::Direct3D::Dxc;
 use windows::Win32::Graphics::Direct3D12::*;
@@ -465,8 +465,8 @@ pub(crate) struct Dx12Backend {
 
     /// Compiled HLSL sources as DXIL containers
     objects: HashMap<IdentifierIdx, Dxc::IDxcBlob>,
+    /// All user buffers and textures
     buffers: HashMap<IdentifierIdx, ID3D12Resource2>,
-    textures: HashMap<IdentifierIdx, ID3D12Resource2>,
     root_sigs: HashMap<IdentifierIdx, ID3D12RootSignature>,
     shader_ids: HashMap<IdentifierIdx, ShaderId>,
     /// Buffer that stores the shader table and its stride
@@ -474,6 +474,8 @@ pub(crate) struct Dx12Backend {
     pipelines: HashMap<IdentifierIdx, Pipeline>,
     psos: HashMap<IdentifierIdx, ID3D12StateObject>,
     views: HashMap<IdentifierIdx, DescriptorHandles>,
+    /// Handle and originating buffer for RTVs and DSVs
+    graphics_views: HashMap<IdentifierIdx, (D3D12_CPU_DESCRIPTOR_HANDLE, IdentifierIdx)>,
     blas: HashMap<IdentifierIdx, ID3D12Resource2>,
     tlas: HashMap<IdentifierIdx, ID3D12Resource2>,
     /// (command signature, stride)
@@ -1542,13 +1544,13 @@ impl Backend for Dx12Backend {
 
                 objects: Default::default(),
                 buffers: Default::default(),
-                textures: Default::default(),
                 root_sigs: Default::default(),
                 shader_ids: Default::default(),
                 shader_tables: Default::default(),
                 pipelines: Default::default(),
                 psos: Default::default(),
                 views: Default::default(),
+                graphics_views: Default::default(),
                 blas: Default::default(),
                 tlas: Default::default(),
                 command_signatures: Default::default(),
@@ -1669,7 +1671,6 @@ impl Backend for Dx12Backend {
         self.descriptor_heap_size = 0;
         self.objects.clear();
         self.buffers.clear();
-        self.textures.clear();
         self.root_sigs.clear();
         self.shader_ids.clear();
         self.shader_tables.clear();
@@ -2213,7 +2214,7 @@ impl Backend for Dx12Backend {
                 None => {}
             }
 
-            self.textures.insert(id, texture);
+            self.buffers.insert(id, texture);
             Ok(())
         }
     }
@@ -2230,6 +2231,9 @@ impl Backend for Dx12Backend {
                     let typ = match typ {
                         ViewType::Srv => D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
                         ViewType::Uav => D3D12_DESCRIPTOR_RANGE_TYPE_UAV,
+                        ViewType::Rtv | ViewType::Dsv => {
+                            return Err(error::InvalidViewType { typ: *typ }.into());
+                        }
                     };
                     let range = D3D12_DESCRIPTOR_RANGE1 {
                         RangeType: typ,
@@ -2256,6 +2260,9 @@ impl Backend for Dx12Backend {
                     let typ = match typ {
                         ViewType::Srv => D3D12_ROOT_PARAMETER_TYPE_SRV,
                         ViewType::Uav => D3D12_ROOT_PARAMETER_TYPE_UAV,
+                        ViewType::Rtv | ViewType::Dsv => {
+                            return Err(error::InvalidViewType { typ: *typ }.into());
+                        }
                     };
 
                     params.push(D3D12_ROOT_PARAMETER1 {
@@ -2904,8 +2911,6 @@ impl Backend for Dx12Backend {
         let Directive::View { name, typ: view_type, .. } = dir else { unreachable!() };
 
         unsafe {
-            let view = self.descriptor_handles()?;
-
             match view_type {
                 InputViewType::RaytracingAccelStruct => {
                     let desc = D3D12_SHADER_RESOURCE_VIEW_DESC {
@@ -2922,6 +2927,7 @@ impl Backend for Dx12Backend {
                         },
                     };
 
+                    let view = self.descriptor_handles()?;
                     self.device.CreateShaderResourceView(None, Some(&desc), view.cpu);
                     self.views.insert(id, view);
                 }
@@ -2983,6 +2989,7 @@ impl Backend for Dx12Backend {
                                 },
                             };
 
+                            let view = self.descriptor_handles()?;
                             self.device.CreateShaderResourceView(
                                 &self.buffers[&buffer],
                                 Some(&desc),
@@ -3011,6 +3018,7 @@ impl Backend for Dx12Backend {
                                 },
                             };
 
+                            let view = self.descriptor_handles()?;
                             self.device.CreateUnorderedAccessView(
                                 &self.buffers[&buffer],
                                 None,
@@ -3018,6 +3026,16 @@ impl Backend for Dx12Backend {
                                 view.cpu,
                             );
                             self.views.insert(id, view);
+                        }
+                        ViewType::Rtv => {
+                            let view = self.create_render_target_view()?;
+                            self.device.CreateRenderTargetView(&self.buffers[&buffer], None, view);
+                            self.graphics_views.insert(id, (view, buffer));
+                        }
+                        ViewType::Dsv => {
+                            let view = self.create_depth_stencil_view()?;
+                            self.device.CreateDepthStencilView(&self.buffers[&buffer], None, view);
+                            self.graphics_views.insert(id, (view, buffer));
                         }
                     }
                 }
@@ -3057,6 +3075,9 @@ impl Backend for Dx12Backend {
                         let typ = match typ {
                             ViewType::Uav => D3D12_INDIRECT_ARGUMENT_TYPE_UNORDERED_ACCESS_VIEW,
                             ViewType::Srv => D3D12_INDIRECT_ARGUMENT_TYPE_SHADER_RESOURCE_VIEW,
+                            ViewType::Rtv | ViewType::Dsv => {
+                                return Err(error::InvalidViewType { typ: *typ }.into());
+                            }
                         };
                         D3D12_INDIRECT_ARGUMENT_DESC {
                             Type: typ,
@@ -3140,36 +3161,140 @@ impl Backend for Dx12Backend {
             let pipe_root_sig;
             let mut is_graphics = false;
             match content {
-                DispatchContent::Dispatch => {
+                DispatchContent::Dispatch { rendertargets, depth_stencil } => {
                     let pipeline = &self.pipelines[&pipeline];
                     cmds = self.command_list_with_pipeline("dispatch", &pipeline.pipeline)?;
                     is_graphics = pipeline.typ != PipelineType::Compute;
                     pipe_root_sig = pipeline.root_sig;
 
                     if is_graphics {
-                        /*
-                        // TODO
-                        let buffer_desc = win.back_buffer.GetDesc1();
-                        cmds.RSSetViewports(&[D3D12_VIEWPORT {
-                            Width: buffer_desc.Width as f32,
-                            Height: buffer_desc.Height as f32,
-                            MaxDepth: 1.0,
-                            ..Default::default()
-                        }]);
-                        cmds.RSSetScissorRects(&[RECT {
-                            right: buffer_desc.Width as i32,
-                            bottom: buffer_desc.Height as i32,
-                            ..Default::default()
-                        }]);
-                        resource_barrier!(cmds(
-                            &win.back_buffer,
-                            D3D12_RESOURCE_STATE_PRESENT,
-                            D3D12_RESOURCE_STATE_RENDER_TARGET,
-                        ));
-                        cmds.OMSetRenderTargets(1, Some(&win.back_buffer_view), false, None);
-                        // TODO
-                        // OMSetBlendFactor, OMSetStencilRef, RSSetShadingRate, RSSetShadingRateImage, OMSetDepthBounds, SetSamplePositions, SetViewInstanceMask
-                        */
+                        let DispatchType::Dispatch {
+                            viewports,
+                            scissors,
+                            blend_factor,
+                            stencil_ref,
+                            depth_bounds,
+                            sample_positions,
+                            view_instance_mask,
+                            ..
+                        } = typ
+                        else {
+                            unreachable!()
+                        };
+
+                        if !rendertargets.is_empty() {
+                            for r in rendertargets {
+                                let buffer = &self.buffers[&self.graphics_views[r].1];
+                                resource_barrier!(cmds(
+                                    &buffer,
+                                    D3D12_RESOURCE_STATE_PRESENT,
+                                    D3D12_RESOURCE_STATE_RENDER_TARGET,
+                                ));
+                            }
+                            let rendertargets = rendertargets
+                                .iter()
+                                .map(|r| self.graphics_views[&r].0)
+                                .collect::<Vec<_>>();
+                            cmds.OMSetRenderTargets(
+                                rendertargets.len().try_into().expect("Too many rendertargets"),
+                                Some(rendertargets.as_ptr()),
+                                false,
+                                depth_stencil.map(|r| &self.views[&r].cpu as *const _),
+                            );
+                        }
+
+                        if !viewports.is_empty() {
+                            let viewports = viewports
+                                .iter()
+                                .map(|v| D3D12_VIEWPORT {
+                                    TopLeftX: v.x,
+                                    TopLeftY: v.y,
+                                    Width: v.width,
+                                    Height: v.height,
+                                    MinDepth: v.min_depth,
+                                    MaxDepth: v.max_depth,
+                                })
+                                .collect::<Vec<_>>();
+                            cmds.RSSetViewports(&viewports);
+                        } else {
+                            // Default to the size of rendertargets
+                            if !rendertargets.is_empty() {
+                                let viewports = rendertargets
+                                    .iter()
+                                    .map(|r| {
+                                        let buffer = &self.buffers[&self.graphics_views[r].1];
+                                        let buffer_desc = buffer.GetDesc1();
+                                        D3D12_VIEWPORT {
+                                            Width: buffer_desc.Width as f32,
+                                            Height: buffer_desc.Height as f32,
+                                            MaxDepth: 1.0,
+                                            ..Default::default()
+                                        }
+                                    })
+                                    .collect::<Vec<_>>();
+                                cmds.RSSetViewports(&viewports);
+                            }
+                        }
+
+                        if !scissors.is_empty() {
+                            let scissors = scissors
+                                .iter()
+                                .map(|r| RECT {
+                                    left: r.left,
+                                    top: r.top,
+                                    right: r.right,
+                                    bottom: r.bottom,
+                                })
+                                .collect::<Vec<_>>();
+                            cmds.RSSetScissorRects(&scissors);
+                        } else {
+                            // Default to the size of rendertargets
+                            if !rendertargets.is_empty() {
+                                let scissors = rendertargets
+                                    .iter()
+                                    .map(|r| {
+                                        let buffer = &self.buffers[&self.graphics_views[r].1];
+                                        let buffer_desc = buffer.GetDesc1();
+                                        RECT {
+                                            right: buffer_desc.Width as i32,
+                                            bottom: buffer_desc.Height as i32,
+                                            ..Default::default()
+                                        }
+                                    })
+                                    .collect::<Vec<_>>();
+                                cmds.RSSetScissorRects(&scissors);
+                            }
+                        }
+
+                        if let Some(f) = blend_factor {
+                            cmds.OMSetBlendFactor(Some(f));
+                        }
+                        if let Some(r) = stencil_ref {
+                            cmds.OMSetStencilRef(*r);
+                        }
+                        if let Some((min, max)) = depth_bounds {
+                            cmds.OMSetDepthBounds(*min, *max);
+                        }
+                        if let Some(ps) = sample_positions {
+                            let ps_per_pixel = ps.first().map(|v| v.len()).unwrap_or_default();
+                            let positions = ps
+                                .iter()
+                                .flatten()
+                                .map(|p| D3D12_SAMPLE_POSITION { X: p.0, Y: p.1 })
+                                .collect::<Vec<_>>();
+                            cmds.SetSamplePositions(
+                                ps_per_pixel
+                                    .try_into()
+                                    .expect("Too many sample positions per pixel"),
+                                ps.len().try_into().expect("Too many sample position pixels"),
+                                positions.as_ptr(),
+                            );
+                        }
+                        if let Some(m) = view_instance_mask {
+                            cmds.SetViewInstanceMask(*m);
+                        }
+
+                        // TODO RSSetShadingRate, RSSetShadingRateImage
                     }
                 }
                 DispatchContent::DispatchRays { .. } => {
@@ -3234,6 +3359,9 @@ impl Backend for Dx12Backend {
                             cmds.SetComputeRootShaderResourceView(v.index, gpu_addr);
                         }
                     }
+                    ViewType::Rtv | ViewType::Dsv => {
+                        return Err(error::InvalidViewType { typ: v.typ.unwrap() }.into());
+                    }
                 }
             }
 
@@ -3253,8 +3381,8 @@ impl Backend for Dx12Backend {
             let query_heap = self.get_query_heap()?.clone();
             cmds.EndQuery(&query_heap, D3D12_QUERY_TYPE_TIMESTAMP, 0);
             match content {
-                DispatchContent::Dispatch => {
-                    let DispatchType::Dispatch { dimensions } = typ else { unreachable!() };
+                DispatchContent::Dispatch { .. } => {
+                    let DispatchType::Dispatch { dimensions, .. } = typ else { unreachable!() };
                     let pipeline = &self.pipelines[&pipeline];
                     match pipeline.typ {
                         PipelineType::Compute => {
@@ -3403,8 +3531,7 @@ impl Backend for Dx12Backend {
     fn display(&mut self, texture: IdentifierIdx, _: &Directive) -> Result<()> {
         if let Some(win) = &self.window_buffer {
             // Copy from texture to window buffer
-            // TODO Extra textures or re-use buffers?
-            let texture = &self.textures[&texture];
+            let texture = &self.buffers[&texture];
 
             unsafe {
                 let cmds = self.command_list("display")?;

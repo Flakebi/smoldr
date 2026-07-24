@@ -50,7 +50,6 @@ enum IdentifierType {
     Blas,
     Tlas,
     Buffer,
-    Texture,
     RootSig,
     ShaderId,
     ShaderTable,
@@ -294,6 +293,10 @@ enum ViewType {
     Uav,
     /// Shader resource view aka read-only buffer
     Srv,
+    /// Render target view
+    Rtv,
+    /// Depth-stencil view
+    Dsv,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -762,11 +765,43 @@ struct TlasBlas {
     config: TlasBlasConfig,
 }
 
+#[derive(Clone, Debug, Default, PartialEq)]
+struct Viewport {
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+    min_depth: f32,
+    max_depth: f32,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+struct Rect {
+    left: i32,
+    top: i32,
+    right: i32,
+    bottom: i32,
+}
+
 /// Different types of dispatches
 #[derive(Clone, Debug, PartialEq)]
 enum DispatchType {
-    /// Compute dispatch
-    Dispatch { dimensions: Dim3 },
+    /// Compute or graphics dispatch
+    Dispatch {
+        dimensions: Dim3,
+        // The following members are only used for graphics
+        // TODO Check that they are not set for compute
+        rendertargets: Vec<Identifier>,
+        depth_stencil: Option<Identifier>,
+        viewports: Vec<Viewport>,
+        scissors: Vec<Rect>,
+        blend_factor: Option<[f32; 4]>,
+        stencil_ref: Option<u32>,
+        /// Minimum and maximum
+        depth_bounds: Option<(f32, f32)>,
+        sample_positions: Option<Vec<Vec<(i8, i8)>>>,
+        view_instance_mask: Option<u32>,
+    },
     DispatchRays {
         dimensions: Dim3,
         /// The tables are RayGen, Miss, HitGroup, Callable.
@@ -790,7 +825,10 @@ enum PipelineKind {
 
 #[derive(Clone, Debug, PartialEq)]
 enum DispatchContent<'a> {
-    Dispatch,
+    Dispatch {
+        rendertargets: &'a [IdentifierIdx],
+        depth_stencil: Option<IdentifierIdx>,
+    },
     DispatchRays {
         tables: &'a [Option<IdentifierIdx>],
     },
@@ -970,25 +1008,16 @@ enum Directive {
         shaders: Vec<(Identifier, ShaderType)>,
         /// Root signature
         root_sig: Option<Identifier>,
-        /// Only for graphics pipelines
+        // The following are only for graphics pipelines
         blend: Option<BlendDesc>,
-        /// Only for graphics pipelines
         depth_stencil: Option<DepthStencil>,
-        /// Only for graphics pipelines
         rasterizer_state: Option<RasterizerState>,
-        /// Only for graphics pipelines
         render_target_formats: Vec<Format>,
-        /// Only for graphics pipelines
         depth_stencil_format: Option<Format>,
-        /// Only for graphics pipelines
         sample_desc: Option<SampleDesc>,
-        /// Only for graphics pipelines
         sample_mask: Option<u32>,
-        /// Only for graphics pipelines
         view_instancing: Vec<ViewInstancingLocation>,
-        /// Only for graphics pipelines
         view_instancing_config: Option<ViewInstancingConfig>,
-        /// Only for graphics pipelines
         config: Option<PipelineStateConfig>,
     },
     PipelineStateObject {
@@ -1096,7 +1125,6 @@ impl fmt::Display for IdentifierType {
             Self::Blas => "BLAS",
             Self::Tlas => "TLAS",
             Self::Buffer => "BUFFER",
-            Self::Texture => "TEXTURE",
             Self::RootSig => "ROOT",
             Self::ShaderId => "SHADERID",
             Self::ShaderTable => "SHADERTABLE",
@@ -1104,6 +1132,28 @@ impl fmt::Display for IdentifierType {
             Self::PipelineStateObject => "PSO",
             Self::View => "VIEW",
             Self::CommandSignature => "COMMAND_SIGNATURE",
+        })
+    }
+}
+
+impl fmt::Display for ViewType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", match self {
+            Self::Uav => "UAV",
+            Self::Srv => "SRV",
+            Self::Rtv => "RTV",
+            Self::Dsv => "DSV",
+        })
+    }
+}
+
+impl fmt::Display for ShaderType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", match self {
+            Self::Compute => "COMPUTE",
+            Self::Amplification => "AMPLIFICATION",
+            Self::Mesh => "MESH",
+            Self::Pixel => "PIXEL",
         })
     }
 }
@@ -1862,7 +1912,7 @@ impl State {
                 backend.upload(id, &mut |data| content.fill(data))?;
             }
             Directive::Texture { name, .. } => {
-                let id = self.add_identifier(name.clone(), IdentifierType::Texture)?;
+                let id = self.add_identifier(name.clone(), IdentifierType::Buffer)?;
                 backend.create_texture(id, dir)?;
             }
             Directive::RootSig { name, .. } => {
@@ -1921,7 +1971,75 @@ impl State {
                             }
                             .into());
                         }
-                        // TODO Assert compute shader
+                        if shaders[0].1 != ShaderType::Compute {
+                            let declaration = self.identifiers[shaders[0].0].0.clone();
+                            return Err(error::InvalidShaderType {
+                                declaration,
+                                typ: shaders[0].1,
+                                extra: ", this is a compute pipeline",
+                            }
+                            .into());
+                        }
+                        let Directive::Pipeline {
+                            name: _,
+                            typ: _,
+                            shaders: _,
+                            root_sig: _,
+
+                            // Assert these are not set for compute
+                            blend,
+                            depth_stencil,
+                            rasterizer_state,
+                            render_target_formats,
+                            depth_stencil_format,
+                            sample_desc,
+                            sample_mask,
+                            view_instancing,
+                            view_instancing_config,
+                            config,
+                        } = dir
+                        else {
+                            unreachable!()
+                        };
+
+                        let err = |property| {
+                            Err(error::InvalidProperty {
+                                statement: name.clone(),
+                                property,
+                                extra: ", this is a compute pipeline",
+                            }
+                            .into())
+                        };
+                        if blend.is_some() {
+                            return err("BLEND");
+                        }
+                        if depth_stencil.is_some() {
+                            return err("DEPTH_STENCIL");
+                        }
+                        if rasterizer_state.is_some() {
+                            return err("RASTERIZER");
+                        }
+                        if !render_target_formats.is_empty() {
+                            return err("RENDER_TARGET_FORMATS");
+                        }
+                        if depth_stencil_format.is_some() {
+                            return err("DEPTH_STENCIL_FORMAT");
+                        }
+                        if sample_desc.is_some() {
+                            return err("SAMPLE_DESC");
+                        }
+                        if sample_mask.is_some() {
+                            return err("SAMPLE_MASK");
+                        }
+                        if !view_instancing.is_empty() {
+                            return err("VIEW_INSTANCING");
+                        }
+                        if view_instancing_config.is_some() {
+                            return err("VIEW_INSTANCING_CONFIG");
+                        }
+                        if config.is_some() {
+                            return err("CONFIG");
+                        }
 
                         backend.create_compute_pipeline(id, shaders[0].0, root_sig, dir)?
                     }
@@ -1929,20 +2047,52 @@ impl State {
                         let mut ams = None;
                         let mut ms = None;
                         let mut ps = None;
+                        let already_set_msg = ", the pipeline already has a shader of this type";
                         for s in shaders {
                             match s.1 {
-                                // TODO Proper errors instead of asserts/panics
-                                ShaderType::Compute => panic!("No compute in mesh pipelines"),
+                                ShaderType::Compute => {
+                                    let declaration = self.identifiers[s.0].0.clone();
+                                    return Err(error::InvalidShaderType {
+                                        declaration,
+                                        typ: s.1,
+                                        extra: ", this is a mesh pipeline",
+                                    }
+                                    .into());
+                                }
                                 ShaderType::Amplification => {
-                                    assert!(ams.is_none(), "No more than one amplification shader");
+                                    if ams.is_some() {
+                                        let declaration = self.identifiers[s.0].0.clone();
+                                        return Err(error::InvalidShaderType {
+                                            declaration,
+                                            typ: s.1,
+                                            extra: already_set_msg,
+                                        }
+                                        .into());
+                                    }
                                     ams = Some(s.0);
                                 }
                                 ShaderType::Mesh => {
-                                    assert!(ms.is_none(), "No more than one mesh shader");
+                                    if ms.is_some() {
+                                        let declaration = self.identifiers[s.0].0.clone();
+                                        return Err(error::InvalidShaderType {
+                                            declaration,
+                                            typ: s.1,
+                                            extra: already_set_msg,
+                                        }
+                                        .into());
+                                    }
                                     ms = Some(s.0);
                                 }
                                 ShaderType::Pixel => {
-                                    assert!(ps.is_none(), "No more than one pixel shader");
+                                    if ps.is_some() {
+                                        let declaration = self.identifiers[s.0].0.clone();
+                                        return Err(error::InvalidShaderType {
+                                            declaration,
+                                            typ: s.1,
+                                            extra: already_set_msg,
+                                        }
+                                        .into());
+                                    }
                                     ps = Some(s.0);
                                 }
                             }
@@ -1997,10 +2147,21 @@ impl State {
                 backend.create_command_signature(id, root_sig, dir)?;
             }
             Directive::Dispatch { identifier, pipeline, root_val, root_sig, typ, .. } => {
+                let content_rendertargets;
                 let content_tables;
                 let (pipeline_type, content) = match typ {
-                    DispatchType::Dispatch { .. } => {
-                        (IdentifierType::Pipeline, DispatchContent::Dispatch)
+                    DispatchType::Dispatch { rendertargets, depth_stencil, .. } => {
+                        content_rendertargets = rendertargets
+                            .iter()
+                            .map(|t| self.get_type(t, IdentifierType::View))
+                            .collect::<Result<Vec<_>>>()?;
+                        (IdentifierType::Pipeline, DispatchContent::Dispatch {
+                            rendertargets: &content_rendertargets,
+                            depth_stencil: depth_stencil
+                                .as_ref()
+                                .map(|t| self.get_type(t, IdentifierType::View))
+                                .transpose()?,
+                        })
                     }
                     DispatchType::DispatchRays { tables, .. } => {
                         content_tables = tables
@@ -2080,7 +2241,7 @@ impl State {
                 );
             }
             Directive::Display { identifier } => {
-                let texture = self.get_type(identifier, IdentifierType::Texture)?;
+                let texture = self.get_type(identifier, IdentifierType::Buffer)?;
                 backend.display(texture, dir)?;
             }
             Directive::Include { identifier, path } => {

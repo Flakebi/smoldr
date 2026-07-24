@@ -543,7 +543,7 @@ Omitting values leaves them at their default.
 ###### RENDER_TARGET_FORMATS
 
 ```
-RENDER_TARGET_FORMATS <format> [<format>] […]
+RENDER_TARGET_FORMATS <format> [<format>…]
 ```
 
 Specify the formats of up to 8 render targets.
@@ -558,7 +558,7 @@ DEPTH_STENCIL_FORMAT <format>
 
 Specify the format of the depth-stencil texture.
 
-* `format` is one of the values for [`DXGI_FORMAT`](https://learn.microsoft.com/en-us/windows/win32/api/dxgiformat/ne-dxgiformat-dxgi_format) like `DXGI_FORMAT_D32_FLOAT`.
+* `format` is one of the values for [`DXGI_FORMAT`](https://learn.microsoft.com/en-us/windows/win32/api/dxgiformat/ne-dxgiformat-dxgi_format) like D32_FLOAT`.
 
 ###### SAMPLE_DESC
 
@@ -836,6 +836,118 @@ For traditional pipelines, it defaults to the root signature specified in the pi
 
 * `root_identifier` is the root signature.
 
+#### RENDERTARGET
+
+```
+RENDERTARGET <view_identifier>
+```
+
+Specify the view to render to.
+Can be specified more than once.
+
+* `view_identifier` specifies the render target view to render to.
+
+#### DEPTH_STENCIL
+
+```
+DEPTH_STENCIL <view_identifier>
+```
+
+Specify the depth-stencil texture for rendering.
+
+* `view_identifier` specifies the depth-stencil view.
+
+#### VIEWPORT
+
+```
+VIEWPORT
+  X <float>
+  Y <float>
+  MIN_DEPTH <float>
+  WIDTH <float>
+  HEIGHT <float>
+  MAX_DEPTH <float>
+END
+```
+
+Specify the viewport.
+Can be specified more than once.
+Defaults to the size of the rendertarget texture and depth 0 to 1 if not set.
+
+* `float`s specify the position and size of the viewport.
+
+#### SCISSOR
+
+```
+SCISSOR
+  LEFT <int>
+  TOP <int>
+  RIGHT <int>
+  BOTTOM <int>
+END
+```
+
+Specify a scissors rectangle.
+Can be specified more than once.
+Defaults to the size of the rendertarget texture.
+
+* `int`s specify the position and size of the rectangle.
+
+#### BLEND_FACTOR
+
+```
+BLEND_FACTOR <r> <g> <b> <a>
+```
+
+Specify a blend factor for custom blending.
+
+* `r`/`g`/`b`/`a` specify the components of the blend factor.
+
+#### STENCIL_REF
+
+```
+STENCIL_REF <ref>
+```
+
+Specify a reference value for depth-stencil tests.
+
+* `ref` is the reference value.
+
+#### DEPTH_BOUNDS
+
+```
+DEPTH_BOUNDS <min> <max>
+```
+
+Set the depth bounds.
+
+* `min` is the minimum, defaulting to 0.
+* `max` is the maximum, defaulting to 1.
+
+#### SAMPLE_POSITIONS
+
+```
+SAMPLE_POSITIONS
+  PIXEL <x> <y> [<x> <y>…]
+END
+```
+
+Set the sample positions.
+For each pixel, specify a list of positions.
+See [SetSamplePositions](https://learn.microsoft.com/en-us/windows/win32/api/d3d12/nf-d3d12-id3d12graphicscommandlist1-setsamplepositions) for details.
+
+* `x`/`y` specify a position.
+
+#### VIEW_INSTANCE_MASK
+
+```
+VIEW_INSTANCE_MASK <mask>
+```
+
+Set a mask on view instances.
+
+* `mask` specifies the mask for view instances.
+
 #### Example
 
 ```
@@ -851,6 +963,11 @@ DISPATCHRAYS rtpso
   BIND 0 TABLE view
   ROOT_SIG root_sig
 RUN rgen_table - miss_table - 64 1 1
+
+DISPATCH mesh_pipeline
+  BIND 0 TABLE view
+  RENDERTARGET img_rtv
+RUN 1 1 1
 ```
 
 

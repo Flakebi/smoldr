@@ -52,7 +52,7 @@ BUFFER outbuf DATA_TYPE float SIZE 32 FILL 0
 # Texture using window size if there is a window or 64x64 default size
 # TODO Create sampler for shader input
 TEXTURE img
-  FORMAT R8B8G8A8_TYPELESS
+  FORMAT R8G8B8A8_TYPELESS
   WIDTH 64
   HEIGHT 64
   CLEAR 0 0 0 0
@@ -67,15 +67,18 @@ END
 PIPELINE meshpipe MESH
   MESH_SHADER meshobj
   PIXEL_SHADER psobj
-  RENDER_TARGET_FORMATS R8B8G8A8_TYPELESS
+  RENDER_TARGET_FORMATS R8G8B8A8_TYPELESS
+  # Disable depth
+  DEPTH_STENCIL
+  END
   ROOT default
 END
 
-VIEW img_target img AS RTV
+VIEW img_rtv img AS RTV
 
 # Run the pipeline in a 1x1x1 dispatch
 DISPATCH meshpipe
-  RENDERTARGET img_target
+  RENDERTARGET img_rtv
 RUN 1 1 1
 
 # Show img in window if there is one

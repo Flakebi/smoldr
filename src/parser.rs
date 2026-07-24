@@ -462,7 +462,9 @@ fn view_type(s: &mut Input) -> Result<ViewType> {
     dispatch_id! {id;
         "SRV" => empty.value(ViewType::Srv),
         "UAV" => empty.value(ViewType::Uav),
-        _ => inv_word(id.span, "view", &["SRV", "UAV"]),
+        "RTV" => empty.value(ViewType::Rtv),
+        "DSV" => empty.value(ViewType::Dsv),
+        _ => inv_word(id.span, "view", &["SRV", "UAV", "RTV", "DSV"]),
     }
     .parse_next(s)
 }
@@ -1210,7 +1212,7 @@ fn texture(s: &mut Input) -> Result<Directive> {
             "ARRAY" => no_dup(&mut array, id.clone(), delimited(space, uint, line_end)),
             "MIP_LEVELS" => no_dup(&mut mip_levels, id.clone(), delimited(space, uint, line_end)),
             "SAMPLE_DESC" => no_dup(&mut sample_desc_field, id.clone(), sample_desc),
-            "CLEAR" => no_dup(&mut clear, id.clone(), repeat(2..=4, preceded(space, number::<f32>))),
+            "CLEAR" => no_dup(&mut clear, id.clone(), terminated(repeat(2..=4, preceded(space, number::<f32>)), line_end)),
             "CONFIG" => flags(&mut config, id),
             _ => fail,
         }),
@@ -1277,7 +1279,7 @@ fn texture(s: &mut Input) -> Result<Directive> {
             }
         },
         config: empty.value(config.0.unwrap_or_default()),
-        _: line_end,
+        _: ("END", line_end),
     }}
     .parse_next(s)
 }
@@ -1775,12 +1777,135 @@ fn dispatch_view<'a>(typ: ViewType) -> impl Parser<'a, RootValView> {
     }
 }
 
+fn viewport<'a>(id: Identifier) -> impl Parser<'a, Viewport> {
+    move |s: &mut Input<'a>| {
+        let mut x = Default::default();
+        let mut y = Default::default();
+        let mut min_depth = Default::default();
+        let mut width = Default::default();
+        let mut height = Default::default();
+        let mut max_depth = Default::default();
+
+        line_end(s)?;
+
+        repeat::<_, _, (), _, _>(0.., dispatch_id! {id;
+            "X" => no_dup(&mut x, id.clone(), delimited(space, number, line_end)),
+            "Y" => no_dup(&mut y, id.clone(), delimited(space, number, line_end)),
+            "MIN_DEPTH" => no_dup(&mut min_depth, id.clone(), delimited(space, number, line_end)),
+            "WIDTH" => no_dup(&mut width, id.clone(), delimited(space, number, line_end)),
+            "HEIGHT" => no_dup(&mut height, id.clone(), delimited(space, number, line_end)),
+            "MAX_DEPTH" => no_dup(&mut max_depth, id.clone(), delimited(space, number, line_end)),
+        _ => fail,
+    })
+    .parse_next(s)?;
+
+        ("END", line_end).parse_next(s)?;
+
+        Ok(Viewport {
+            x: x.0.ok_or_else(|| {
+                ErrMode::Backtrack(ParserError::Missing { span: id.span.clone(), id: "X" })
+            })?,
+            y: y.0.ok_or_else(|| {
+                ErrMode::Backtrack(ParserError::Missing { span: id.span.clone(), id: "Y" })
+            })?,
+            min_depth: min_depth.0.ok_or_else(|| {
+                ErrMode::Backtrack(ParserError::Missing { span: id.span.clone(), id: "MIN_DEPTH" })
+            })?,
+            width: width.0.ok_or_else(|| {
+                ErrMode::Backtrack(ParserError::Missing { span: id.span.clone(), id: "WIDTH" })
+            })?,
+            height: height.0.ok_or_else(|| {
+                ErrMode::Backtrack(ParserError::Missing { span: id.span.clone(), id: "HEIGHT" })
+            })?,
+            max_depth: max_depth.0.ok_or_else(|| {
+                ErrMode::Backtrack(ParserError::Missing { span: id.span.clone(), id: "MAX_DEPTH" })
+            })?,
+        })
+    }
+}
+
+fn rect<'a>(id: Identifier) -> impl Parser<'a, Rect> {
+    move |s: &mut Input<'a>| {
+        let mut left = Default::default();
+        let mut top = Default::default();
+        let mut right = Default::default();
+        let mut bottom = Default::default();
+
+        line_end(s)?;
+
+        repeat::<_, _, (), _, _>(0.., dispatch_id! {id;
+            "LEFT" => no_dup(&mut left, id.clone(), delimited(space, number, line_end)),
+            "TOP" => no_dup(&mut top, id.clone(), delimited(space, number, line_end)),
+            "RIGHT" => no_dup(&mut right, id.clone(), delimited(space, number, line_end)),
+            "BOTTOM" => no_dup(&mut bottom, id.clone(), delimited(space, number, line_end)),
+            _ => fail,
+        })
+        .parse_next(s)?;
+
+        ("END", line_end).parse_next(s)?;
+
+        Ok(Rect {
+            left: left.0.ok_or_else(|| {
+                ErrMode::Backtrack(ParserError::Missing { span: id.span.clone(), id: "LEFT" })
+            })?,
+            top: top.0.ok_or_else(|| {
+                ErrMode::Backtrack(ParserError::Missing { span: id.span.clone(), id: "TOP" })
+            })?,
+            right: right.0.ok_or_else(|| {
+                ErrMode::Backtrack(ParserError::Missing { span: id.span.clone(), id: "RIGHT" })
+            })?,
+            bottom: bottom.0.ok_or_else(|| {
+                ErrMode::Backtrack(ParserError::Missing { span: id.span.clone(), id: "BOTTOM" })
+            })?,
+        })
+    }
+}
+
+fn sample_positions<'a>(id: Identifier) -> impl Parser<'a, Vec<Vec<(i8, i8)>>> {
+    move |s: &mut Input<'a>| {
+        line_end.parse_next(s)?;
+
+        let res: Vec<_> = repeat(
+            0..,
+            delimited(
+                "PIXEL",
+                repeat::<_, _, Vec<_>, _, _>(0.., (preceded(space, uint), preceded(space, uint))),
+                line_end,
+            ),
+        )
+        .parse_next(s)?;
+
+        // Check that all have the same length
+        let len = res.first().map(|v| v.len()).unwrap_or_default();
+        if !res.iter().all(|p| p.len() == len) {
+            return Err(ErrMode::Backtrack(ParserError::InvalidSamplePositions {
+                identifier: id.clone(),
+            }));
+        }
+
+        ("END", line_end).parse_next(s)?;
+
+        Ok(res)
+    }
+}
+
 fn dispatch<'a>(mut id: Identifier, ty: DispatchParseType) -> impl Parser<'a, Directive> {
     use identifier as parse_identifier;
     move |s: &mut Input<'a>| {
         let mut id = mem::take(&mut id);
         let mut root_sig = Default::default();
         let mut root_val = UnresolvedRootVal::default();
+
+        // Graphics
+        let mut rendertargets = Vec::new();
+        let mut depth_stencil = Default::default();
+        let mut viewports = Vec::new();
+        let mut scissors = Vec::new();
+        let mut blend_factor = Default::default();
+        let mut stencil_ref = Default::default();
+        let mut depth_bounds = Default::default();
+        let mut sample_positions_field = Default::default();
+        let mut view_instance_mask = Default::default();
 
         // Execute indirect
         let mut signature = None;
@@ -1816,6 +1941,15 @@ fn dispatch<'a>(mut id: Identifier, ty: DispatchParseType) -> impl Parser<'a, Di
                 "SRV" => dispatch_view(ViewType::Srv).map(|r| root_val.views.push(r)).map_err(inv_statement("SRV <idx> <buffer_name>", id)),
                 "UAV" => dispatch_view(ViewType::Uav).map(|r| root_val.views.push(r)).map_err(inv_statement("UAV <idx> <buffer_name>", id)),
                 "ROOT_SIG" => delimited(space, no_dup(&mut root_sig, id.clone(), parse_identifier), line_end).map_err(inv_statement("ROOT_SIG <name>", id)),
+                "RENDERTARGET" => delimited(space, parse_identifier, line_end).map(|r| rendertargets.push(r)),
+                "DEPTH_STENCIL" => delimited(space, no_dup(&mut depth_stencil, id.clone(), parse_identifier), line_end),
+                "VIEWPORT" => viewport(id).map(|r| viewports.push(r)),
+                "SCISSOR" => rect(id).map(|r| scissors.push(r)),
+                "BLEND_FACTOR" => terminated(no_dup(&mut blend_factor, id.clone(), repeat(4, preceded(space, number::<f32>)).map(|r: Vec<_>| r.try_into().unwrap())), line_end),
+                "STENCIL_REF" => delimited(space, no_dup(&mut stencil_ref, id.clone(), uint), line_end),
+                "DEPTH_BOUNDS" => delimited(space, no_dup(&mut depth_bounds, id.clone(), (number, preceded(space, number))), line_end),
+                "SAMPLE_POSITIONS" => no_dup(&mut sample_positions_field, id.clone(), sample_positions(id)),
+                "VIEW_INSTANCE_MASK" => delimited(space, no_dup(&mut view_instance_mask, id.clone(), uint), line_end),
                 _ => fail,
             }).map(|()| ()),
             root_val: empty.value(mem::take(&mut root_val)),
@@ -1823,10 +1957,26 @@ fn dispatch<'a>(mut id: Identifier, ty: DispatchParseType) -> impl Parser<'a, Di
             _: "RUN",
             typ:|s: &mut _|  {
                 let mut signature = mem::take(&mut signature);
+                let mut rendertargets = mem::take(&mut rendertargets);
+                let mut depth_stencil = depth_stencil.0.take();
+                let mut viewports = mem::take(&mut viewports);
+                let mut scissors = mem::take(&mut scissors);
+                let mut sample_positions = sample_positions_field.0.take();
                 let mut count_buffer = None;
                 let mut count_offset = None;
                 match ty {
-                    DispatchParseType::Dispatch => seq! {DispatchType::Dispatch { dimensions: terminated(dim3, line_end) }}.parse_next(s),
+                    DispatchParseType::Dispatch => seq! {DispatchType::Dispatch {
+                        dimensions: terminated(dim3, line_end),
+                        rendertargets: empty.value(mem::take(&mut rendertargets)),
+                        depth_stencil: empty.value(depth_stencil.take()),
+                        viewports: empty.value(mem::take(&mut viewports)),
+                        scissors: empty.value(mem::take(&mut scissors)),
+                        blend_factor: empty.value(blend_factor.0),
+                        stencil_ref: empty.value(stencil_ref.0),
+                        depth_bounds: empty.value(depth_bounds.0),
+                        sample_positions: empty.value(sample_positions.take()),
+                        view_instance_mask: empty.value(view_instance_mask.0),
+                    }}.parse_next(s),
                     DispatchParseType::DispatchRays => seq! {DispatchType::DispatchRays {
                         tables: repeat(4, preceded(space, alt((none, parse_identifier.map(Some))))).map(|r: Vec<_>| r.try_into().unwrap()),
                         dimensions: terminated(dim3, line_end),
